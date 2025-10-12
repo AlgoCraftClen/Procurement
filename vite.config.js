@@ -8,6 +8,11 @@ export default defineConfig({
   server: {
     allowedHosts: true
   },
+  build: {
+    rollupOptions: {
+      external: ['react-hot-toast']
+    }
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
