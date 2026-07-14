@@ -4,7 +4,7 @@ import { debounce } from 'lodash';
 /**
  * A reusable React hook to check for duplicate records in real-time.
  * @param {object} options - The configuration options.
- * @param {object} options.entity - The base44 entity to query (e.g., Supplier, Invoice).
+ * @param {object} options.entity - The data entity to query (e.g., Supplier, Invoice).
  * @param {string} options.field - The field to check for duplicates (e.g., 'company_name', 'invoice_number').
  * @param {string} options.value - The current value of the field from the form.
  * @param {string|null} options.idToIgnore - The ID of the current record being edited, to prevent it from finding itself as a duplicate.

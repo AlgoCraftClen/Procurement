@@ -1,8 +1,10 @@
-# Base44 App
+# Tobolar Procurement
 
+Web-based procurement and inventory software for requisitions, suppliers, RFQs,
+purchase orders, invoices, goods receipt, budgets, contracts, and inventory.
 
-This app was created automatically by Base44.
-It's a Vite+React app that communicates with the Base44 API.
+The app is a Vite + React frontend using Supabase for data storage. Access is
+open for now by design; security/auth can be added in a later pass.
 
 ## Running the app
 
@@ -17,4 +19,9 @@ npm run dev
 npm run build
 ```
 
-For more information and support, please contact Base44 support at app@base44.com.
+## Supabase setup
+
+1. Create a Supabase project.
+2. Run `supabase/schema.sql` in the Supabase SQL editor.
+3. Copy `.env.example` to `.env` and fill in the project URL and anon key.
+4. Add the same environment variables to the hosting service.

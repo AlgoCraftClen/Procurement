@@ -1,6 +1,5 @@
 
 import { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
 import { Button } from "@/components/ui/button";
 import { Copy, Zap, CheckCircle2, AlertCircle, Loader2, ChevronRight, Clock } from 'lucide-react';
 import { cn } from "@/lib/utils";
@@ -173,6 +172,20 @@ const ChartRenderer = ({ chartConfig }) => {
     return null;
 };
 
+const TextBlock = ({ content }) => (
+    <div className="text-sm leading-relaxed space-y-1 break-words">
+        {String(content || "").split("\n").filter(Boolean).map((line, index) => {
+            const cleanLine = line.replace(/^#{1,6}\s*/, "").replace(/\*\*/g, "");
+            const isListItem = /^[-*]\s+/.test(cleanLine) || /^\d+\.\s+/.test(cleanLine);
+            return (
+                <p key={index} className={cn("break-words", isListItem && "pl-4")}>
+                    {cleanLine}
+                </p>
+            );
+        })}
+    </div>
+);
+
 export default function MessageBubble({ message }) {
     const isUser = message.role === 'user';
     
@@ -248,59 +261,7 @@ export default function MessageBubble({ message }) {
                                     part.type === 'chart' ? (
                                         <ChartRenderer key={index} chartConfig={part.config} />
                                     ) : (
-                                        <ReactMarkdown 
-                                            key={index}
-                                            className="text-sm prose prose-sm prose-slate max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 break-words overflow-wrap-anywhere"
-                                            components={{
-                                                code: ({ inline, className, children, ...props }) => {
-                                                    const match = /language-(\w+)/.exec(className || '');
-                                                    return !inline && match ? (
-                                                        <div className="relative group/code overflow-hidden">
-                                                            <pre className="bg-slate-900 text-slate-100 rounded-lg p-3 overflow-x-auto my-2 break-all whitespace-pre-wrap">
-                                                                <code className={className} {...props}>{children}</code>
-                                                            </pre>
-                                                            <Button
-                                                                size="icon"
-                                                                variant="ghost"
-                                                                className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover/code:opacity-100 bg-slate-800 hover:bg-slate-700"
-                                                                onClick={() => {
-                                                                    navigator.clipboard.writeText(String(children).replace(/\n$/, ''));
-                                                                    toast.success('Code copied');
-                                                                }}
-                                                            >
-                                                                <Copy className="h-3 w-3 text-slate-400" />
-                                                            </Button>
-                                                        </div>
-                                                    ) : (
-                                                        <code className="px-1 py-0.5 rounded bg-slate-100 text-slate-700 text-xs break-all">
-                                                            {children}
-                                                        </code>
-                                                    );
-                                                },
-                                                a: ({ children, ...props }) => (
-                                                    <a {...props} target="_blank" rel="noopener noreferrer" className="break-words">{children}</a>
-                                                ),
-                                                p: ({ children }) => <p className="my-1 leading-relaxed break-words">{children}</p>,
-                                                ul: ({ children }) => <ul className="my-1 ml-4 list-disc break-words">{children}</ul>,
-                                                ol: ({ children }) => <ol className="my-1 ml-4 list-decimal break-words">{children}</ol>,
-                                                li: ({ children }) => <li className="my-0.5 break-words">{children}</li>,
-                                                h1: ({ children }) => <h1 className="text-lg font-semibold my-2 break-words">{children}</h1>,
-                                                h2: ({ children }) => <h2 className="text-base font-semibold my-2 break-words">{children}</h2>,
-                                                h3: ({ children }) => <h3 className="text-sm font-semibold my-2 break-words">{children}</h3>,
-                                                blockquote: ({ children }) => (
-                                                    <blockquote className="border-l-2 border-slate-300 pl-3 my-2 text-slate-600 break-words">
-                                                        {children}
-                                                    </blockquote>
-                                                ),
-                                                table: ({ children }) => (
-                                                    <div className="overflow-x-auto my-2">
-                                                        <table className="min-w-full border-collapse">{children}</table>
-                                                    </div>
-                                                ),
-                                            }}
-                                        >
-                                            {part.content}
-                                        </ReactMarkdown>
+                                        <TextBlock key={index} content={part.content} />
                                     )
                                 ))}
                             </div>

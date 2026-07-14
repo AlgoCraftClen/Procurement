@@ -8,7 +8,6 @@ import { Calendar as CalendarIcon, Loader2, Search, Wand2, Lightbulb, AlertCircl
 import { format } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { InvokeLLM } from '@/api/integrations';
-import ReactMarkdown from 'react-markdown';
 import SupplierTypeFilter from './SupplierTypeFilter';
 import { ProcurementDataProcessor } from './ProcurementDataProcessor';
 
@@ -23,6 +22,20 @@ const CustomTooltip = ({ active, payload, label }) => {
   }
   return null;
 };
+
+const MarkdownText = ({ text }) => (
+  <div className="text-sm leading-relaxed space-y-2">
+    {String(text || "").split("\n").filter(Boolean).map((line, index) => {
+      const cleanLine = line.replace(/^#{1,6}\s*/, "").replace(/\*\*/g, "");
+      const isListItem = /^[-*]\s+/.test(cleanLine) || /^\d+\.\s+/.test(cleanLine);
+      return (
+        <p key={index} className={isListItem ? "pl-4 break-words" : "break-words"}>
+          {cleanLine}
+        </p>
+      );
+    })}
+  </div>
+);
 
 export default function ProcurementAnalysis() {
   const [startDate, setStartDate] = useState(new Date(new Date().setFullYear(new Date().getFullYear() - 1)));
@@ -243,23 +256,7 @@ Format the output as a markdown string.`,
               <CardContent>
                 {insights ? (
                   <div className="prose prose-sm prose-slate max-w-none bg-slate-50 p-4 rounded-lg border break-words overflow-hidden">
-                    <ReactMarkdown 
-                      className="text-sm leading-relaxed"
-                      components={{
-                        p: ({ children }) => <p className="mb-2 break-words">{children}</p>,
-                        h1: ({ children }) => <h1 className="text-base font-bold mb-2 break-words">{children}</h1>,
-                        h2: ({ children }) => <h2 className="text-sm font-bold mb-2 break-words">{children}</h2>,
-                        h3: ({ children }) => <h3 className="text-sm font-semibold mb-1 break-words">{children}</h3>,
-                        ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
-                        ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
-                        li: ({ children }) => <li className="break-words">{children}</li>,
-                        strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                        code: ({ children }) => <code className="bg-slate-200 px-1 py-0.5 rounded text-xs break-all">{children}</code>,
-                        pre: ({ children }) => <pre className="bg-slate-200 p-2 rounded text-xs overflow-x-auto whitespace-pre-wrap break-words">{children}</pre>
-                      }}
-                    >
-                      {insights}
-                    </ReactMarkdown>
+                    <MarkdownText text={insights} />
                   </div>
                 ) : (
                   <Alert>

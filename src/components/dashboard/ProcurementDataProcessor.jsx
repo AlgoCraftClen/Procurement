@@ -19,7 +19,7 @@ export class ProcurementDataProcessor {
   // Optimized: Fetch invoices with date range filter if possible
   async fetchInvoiceData(startDate, endDate) {
     try {
-      // Fetch all invoices (Base44 SDK doesn't support date range filtering in filter method)
+      // Fetch all invoices, then filter locally for the reporting date range.
       // but we immediately filter them, so at least we're not doing unnecessary processing
       const allInvoices = await Invoice.list('-invoice_date');
       

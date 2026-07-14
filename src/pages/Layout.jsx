@@ -38,10 +38,10 @@ import { RFQ } from "@/api/entities";
 import { RawMaterial } from "@/api/entities";
 import { User } from "@/api/entities";
 import { sendWelcomeEmail } from "@/api/functions";
-import NotificationBell from "./components/shared/NotificationBell";
-import UserSettings from "./components/shared/UserSettings";
-import FloatingAIAgent from "./components/shared/FloatingAIAgent";
-import InvitationCodeEntry from "./components/shared/InvitationCodeEntry";
+import NotificationBell from "../components/shared/NotificationBell";
+import UserSettings from "../components/shared/UserSettings";
+import FloatingAIAgent from "../components/shared/FloatingAIAgent";
+import InvitationCodeEntry from "../components/shared/InvitationCodeEntry";
 
 const navigationItems = [
   { title: "Dashboard", url: createPageUrl("Dashboard"), icon: LayoutDashboard },
