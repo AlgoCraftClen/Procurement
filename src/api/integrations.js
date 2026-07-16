@@ -51,7 +51,7 @@ export async function InvokeLLM({ response_json_schema } = {}) {
       charts: []
     };
   }
-  return {};
+  throw new Error("Smart document extraction is not configured yet. Add a Supabase Edge Function or document parsing service before using automatic upload extraction.");
 }
 
 export async function SendEmail() {
