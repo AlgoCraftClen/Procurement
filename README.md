@@ -38,6 +38,22 @@ npm install
 npm run dev
 ```
 
+## GitHub Pages domain
+
+This repo is set up to deploy from `main` to GitHub Pages.
+
+Use these DNS records in IONOS for `tobolarprocurement.com`:
+
+```text
+A     @      185.199.108.153
+A     @      185.199.109.153
+A     @      185.199.110.153
+A     @      185.199.111.153
+CNAME www    AlgoCraftClen.github.io
+```
+
+Replace any existing `www` CNAME with the value shown above.
+
 ## Building the app
 
 ```bash
