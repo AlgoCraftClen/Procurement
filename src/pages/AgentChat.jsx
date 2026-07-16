@@ -22,6 +22,12 @@ export default function AgentChatPage() {
   const [isLoading, setIsLoading] = useState(true);
   const messagesEndRef = useRef(null);
 
+  const getWelcomeMessages = () => ([{
+    role: 'assistant',
+    content: `Hello! I'm **Lijakwe**. Ask me anything about your procurement data.`,
+    created_date: new Date().toISOString()
+  }]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -50,11 +56,7 @@ export default function AgentChatPage() {
       setConversation(activeConversation);
       
       if (activeConversation.messages.length === 0) {
-        setMessages([{
-          role: 'assistant',
-          content: `Hello! I'm **Lijakwe**. Ask me anything about your procurement data.`,
-          created_date: new Date().toISOString()
-        }]);
+        setMessages(getWelcomeMessages());
       } else {
         setMessages(activeConversation.messages);
       }
@@ -88,11 +90,7 @@ export default function AgentChatPage() {
       navigate(`${createPageUrl('AgentChat')}?id=${newConversation.id}`, { replace: true });
       
       // Display welcome message
-      setMessages([{
-        role: 'assistant',
-        content: `Hello! I'm **Lijakwe**. Ask me anything about your procurement data.`,
-        created_date: new Date().toISOString()
-      }]);
+      setMessages(getWelcomeMessages());
       
       toast.success('Started new conversation');
     } catch (error) {
@@ -115,7 +113,8 @@ export default function AgentChatPage() {
   useEffect(() => {
     if (conversation) {
       const unsubscribe = agentSDK.subscribeToConversation(conversation.id, (data) => {
-        setMessages(data.messages || []);
+        const nextMessages = data.messages || [];
+        setMessages(nextMessages.length > 0 ? nextMessages : getWelcomeMessages());
         if (data.status !== 'running') {
             setIsLoading(false);
         }
@@ -175,11 +174,11 @@ export default function AgentChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-full p-4 md:p-6 bg-gradient-to-br from-slate-50 to-blue-50">
-      <Card className="flex-1 flex flex-col max-w-6xl mx-auto w-full shadow-xl overflow-hidden">
+    <div className="flex h-[calc(100vh-8.5rem)] flex-col p-4 md:p-6">
+      <Card className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col overflow-hidden shadow-xl">
         <CardHeader className="border-b bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-t-lg flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
               <Button
                 variant="ghost"
                 size="icon"
@@ -189,14 +188,14 @@ export default function AgentChatPage() {
                 <ArrowLeft className="w-5 h-5" />
               </Button>
               <Bot className="w-8 h-8 flex-shrink-0" />
-              <div>
+              <div className="min-w-0">
                 <CardTitle className="text-2xl font-bold">Lijakwe</CardTitle>
                 <CardDescription className="text-blue-100">
                   Elite AI procurement intelligence with complete data access • Real-time analytics & insights
                 </CardDescription>
               </div>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex flex-wrap items-center gap-2 lg:flex-shrink-0">
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -225,13 +224,13 @@ export default function AgentChatPage() {
           </div>
         </CardHeader>
         
-        <CardContent className="flex-1 overflow-y-auto p-6 space-y-6">
+        <CardContent className="min-h-0 flex-1 overflow-y-auto p-4 space-y-4 md:p-6 md:space-y-6">
           {isLoading && messages.length === 0 ? (
             <div className="flex justify-center items-center h-full">
               <div className="text-center">
                 <Loader2 className="w-12 h-12 animate-spin text-blue-500 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-slate-700 mb-2">Initializing Lijakwe</h3>
-                <p className="text-slate-500">Connecting to your procurement data universe...</p>
+                <p className="text-slate-500">Connecting to procurement data...</p>
               </div>
             </div>
           ) : (
@@ -254,10 +253,10 @@ export default function AgentChatPage() {
           <div ref={messagesEndRef} />
         </CardContent>
         
-        <div className="p-6 border-t bg-gradient-to-r from-slate-50 to-blue-50 flex-shrink-0">
+        <div className="border-t bg-gradient-to-r from-slate-50 to-blue-50 p-4 flex-shrink-0 md:p-6">
           <div className="flex items-center gap-3">
             <Input
-              placeholder="Ask about spending analytics, supplier insights, inventory optimization, strategic recommendations..."
+              placeholder="Ask Lijakwe about spending, suppliers, inventory, or invoices..."
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
@@ -274,7 +273,7 @@ export default function AgentChatPage() {
             </Button>
           </div>
           <div className="text-xs text-slate-500 mt-3 text-center">
-            Ask complex questions - Request detailed analysis - Generate strategic reports - Get actionable recommendations
+            Ask for analysis, reports, supplier insights, and next actions.
           </div>
         </div>
       </Card>

@@ -12,8 +12,9 @@ import { Notification } from "@/api/entities";
 import { updateBudgetOnInvoice } from "@/api/functions";
 import DataConfirmationForm from "../components/upload/DataConfirmationForm";
 import SupplierDecisionModal from "../components/upload/SupplierDecisionModal";
-import { Upload, FileText, AlertCircle, Check, Loader2, Wand2, FileQuestion, FileImage, FileSpreadsheet } from "lucide-react";
+import { Upload, FileText, AlertCircle, Check, Loader2, Wand2, FileQuestion, FileImage, FileSpreadsheet, ExternalLink } from "lucide-react";
 import { createPageUrl } from "@/utils";
+import { Link } from "react-router-dom";
 
 // Enhanced utility function for robust supplier name comparison
 const normalizeSupplierName = (name) => {
@@ -142,6 +143,7 @@ export default function SmartUploadPage() {
   const [documentType, setDocumentType] = useState(null);
   const [extractedData, setExtractedData] = useState(null);
   const [fileUrl, setFileUrl] = useState(null);
+  const [uploadedFileInfo, setUploadedFileInfo] = useState(null);
   const [suppliers, setSuppliers] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [showSupplierModal, setShowSupplierModal] = useState(false);
@@ -159,6 +161,7 @@ export default function SmartUploadPage() {
     setDocumentType(null);
     setExtractedData(null);
     setFileUrl(null);
+    setUploadedFileInfo(null);
     setShowSupplierModal(false);
     setPendingSupplierName('');
     setResolvedSupplierId(null);
@@ -305,6 +308,7 @@ export default function SmartUploadPage() {
         const uploadResult = await UploadFile({ file });
         uploadedFileUrl = uploadResult.file_url;
         setFileUrl(uploadedFileUrl);
+        setUploadedFileInfo(uploadResult);
         console.log('[Upload] ✅ File uploaded successfully');
         break;
       } catch (e) {
@@ -458,6 +462,11 @@ Respond with:
 
     } catch (e) {
       console.error("[Upload] ❌ Classification error:", e);
+      if (e.message && e.message.includes('Smart document extraction is not configured')) {
+        setError(null);
+        setStep('manual_review');
+        return;
+      }
       setError(`Failed to classify document: ${e.message || 'Unknown error'}`);
       setStep('initial');
       return;
@@ -619,6 +628,12 @@ Respond with:
     } catch (e) {
       console.error("[Upload] ❌ Extraction error:", e);
       
+      if (e.message && e.message.includes('Smart document extraction is not configured')) {
+        setError(null);
+        setStep('manual_review');
+        return;
+      }
+
       if (e.message && e.message.includes('unsupported image')) {
         setError("The image format is not supported. Please convert to PNG or ensure your JPG file is valid.");
       } else if (e.message && e.message.includes('too_many_connections')) {
@@ -769,7 +784,7 @@ Respond with:
           <Wand2 className="w-5 h-5 text-blue-500" />
           Smart Document Upload
         </CardTitle>
-        <CardDescription>Upload a Purchase Order, Invoice, or Goods Receipt. The system will automatically detect the document type and extract all information.</CardDescription>
+        <CardDescription>Upload a Purchase Order, Invoice, or Goods Receipt. The document is saved first; automatic extraction will run when the document service is configured.</CardDescription>
       </CardHeader>
       <CardContent>
          <div 
@@ -805,7 +820,7 @@ Respond with:
               <div className="space-y-4">
                 <p className="font-medium text-slate-900">{file.name}</p>
                 <div className="flex gap-3 justify-center">
-                  <Button onClick={processDocument}>Process Document</Button>
+                  <Button onClick={processDocument}>Upload Document</Button>
                   <Button variant="outline" onClick={resetState}>Cancel</Button>
                 </div>
               </div>
@@ -818,17 +833,63 @@ Respond with:
   const ProcessingIndicator = ({ step }) => {
       const messages = {
           uploading: "Uploading file...",
-          classifying: "Analyzing document structure and identifying type (Invoice, PO, or Goods Receipt)...",
+          classifying: "Checking document extraction availability...",
           extracting: "Extracting all data fields, line items, and details from the document...",
       };
       return (
           <div className="text-center p-16 border-2 border-dashed rounded-lg">
               <Loader2 className="w-12 h-12 text-blue-500 mx-auto animate-spin mb-4"/>
               <p className="text-lg font-medium text-slate-900">{messages[step]}</p>
-              <p className="text-sm text-slate-500">This may take a moment. Our AI is reading every detail carefully.</p>
+              <p className="text-sm text-slate-500">The app keeps the source document before attempting extraction.</p>
           </div>
       )
   };
+
+  const ManualReviewCard = () => (
+    <Card className="mb-6 border-blue-200 bg-blue-50/40">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-slate-900">
+          <FileQuestion className="h-5 w-5 text-blue-600" />
+          Document saved. Create the record manually.
+        </CardTitle>
+        <CardDescription>
+          Automatic extraction is not connected yet, but the uploaded source document is available for reference.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="rounded-lg border border-blue-200 bg-white p-4">
+          <p className="font-medium text-slate-900">{uploadedFileInfo?.file_name || file?.name || "Uploaded document"}</p>
+          <p className="mt-1 text-sm text-slate-600">
+            {uploadedFileInfo?.storage_path
+              ? "Stored in Supabase Storage."
+              : "Stored for this browser session because Supabase storage is not configured locally."}
+          </p>
+          {fileUrl && (
+            <Button variant="outline" size="sm" className="mt-3" asChild>
+              <a href={fileUrl} target="_blank" rel="noreferrer">
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Open Document
+              </a>
+            </Button>
+          )}
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <Button asChild>
+            <Link to={createPageUrl("PurchaseOrders")}>Create Purchase Order</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to={createPageUrl("Invoices")}>Create Invoice</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to={createPageUrl("GoodsReceipt")}>Create Goods Receipt</Link>
+          </Button>
+        </div>
+        <div className="flex justify-end">
+          <Button variant="ghost" onClick={resetState}>Upload another document</Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -852,6 +913,8 @@ Respond with:
       {(step === 'initial' || (step === 'confirming' && error)) && <UploadCard />}
       
       {['uploading', 'classifying', 'extracting'].includes(step) && <ProcessingIndicator step={step} />}
+
+      {step === 'manual_review' && <ManualReviewCard />}
 
       {step === 'confirming' && !error && (
         <DataConfirmationForm 

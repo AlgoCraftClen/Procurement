@@ -11,20 +11,20 @@ export default function InventoryPage() {
     <div className="p-6">
       <h1 className="text-2xl font-bold text-slate-900 mb-6">Inventory Management</h1>
       <Tabs defaultValue="raw_materials" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="raw_materials">
+        <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-lg bg-slate-100 p-1 sm:grid-cols-2 lg:grid-cols-4">
+          <TabsTrigger className="h-11 justify-center gap-2 rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm" value="raw_materials">
             <Package className="w-4 h-4 mr-2" />
             Raw Materials
           </TabsTrigger>
-          <TabsTrigger value="equipment">
+          <TabsTrigger className="h-11 justify-center gap-2 rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm" value="equipment">
             <Wrench className="w-4 h-4 mr-2" />
             Equipment
           </TabsTrigger>
-          <TabsTrigger value="finished_goods">
+          <TabsTrigger className="h-11 justify-center gap-2 rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm" value="finished_goods">
             <PackageCheck className="w-4 h-4 mr-2" />
             Finished Goods
           </TabsTrigger>
-          <TabsTrigger value="issued_items">
+          <TabsTrigger className="h-11 justify-center gap-2 rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm" value="issued_items">
             <UserCheck className="w-4 h-4 mr-2" />
             Issued Items
           </TabsTrigger>

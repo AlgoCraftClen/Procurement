@@ -7,7 +7,7 @@ import { MessageCircle, Send, X, Minimize2, Maximize2, Bot, ExternalLink, Loader
 import { agentSDK } from '@/agents';
 import MessageBubble from '../agent/MessageBubble';
 import { createPageUrl } from '@/utils';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 export default function FloatingAIAgent() {
   const [isOpen, setIsOpen] = useState(false);
@@ -19,6 +19,7 @@ export default function FloatingAIAgent() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -165,16 +166,26 @@ export default function FloatingAIAgent() {
   };
 
   const handleOpenInNewTab = () => {
+    const target = conversation
+      ? createPageUrl(`AgentChat?id=${conversation.id}`)
+      : createPageUrl(`AgentChat`);
+    cleanupConversation();
+    setIsOpen(false);
+
     if (conversation) {
-      navigate(createPageUrl(`AgentChat?id=${conversation.id}`));
+      navigate(target);
     } else {
-      navigate(createPageUrl(`AgentChat`));
+      navigate(target);
     }
   };
 
+  if (location.pathname.toLowerCase().includes('/agentchat')) {
+    return null;
+  }
+
   if (!isOpen) {
     return (
-      <div className="fixed bottom-6 left-6 z-50">
+      <div className="fixed bottom-6 right-6 z-50">
         <Button
           onClick={() => setIsOpen(true)}
           className="h-14 w-14 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-200"
@@ -188,8 +199,8 @@ export default function FloatingAIAgent() {
 
   if (isMinimized) {
     return (
-      <div className="fixed bottom-6 left-6 z-50">
-        <Card className="w-80 shadow-xl border-t-4 border-blue-600">
+      <div className="fixed bottom-6 right-6 z-50">
+        <Card className="w-[min(20rem,calc(100vw-2rem))] shadow-xl border-t-4 border-blue-600">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-t-lg">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Bot className="h-4 w-4" />
@@ -239,8 +250,8 @@ export default function FloatingAIAgent() {
   }
 
   return (
-    <div className="fixed bottom-6 left-6 z-50">
-      <Card className="w-96 h-[700px] shadow-2xl border-t-4 border-gradient-to-r from-blue-600 to-purple-600 flex flex-col">
+    <div className="fixed bottom-4 right-4 z-50 sm:bottom-6 sm:right-6">
+      <Card className="flex h-[min(700px,calc(100vh-3rem))] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden shadow-2xl border-t-4 border-blue-600">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-t-lg flex-shrink-0">
           <CardTitle className="text-lg font-bold flex items-center gap-2">
             <Bot className="h-6 w-6" />

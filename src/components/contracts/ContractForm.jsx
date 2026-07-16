@@ -64,7 +64,7 @@ export default function ContractForm({ contract, suppliers, onSubmit, onCancel }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6 pb-24">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
           <Label htmlFor="contract_number">Contract Number</Label>
@@ -197,7 +197,7 @@ export default function ContractForm({ contract, suppliers, onSubmit, onCancel }
               onChange={(e) => updateKeyTerm(index, e.target.value)}
               placeholder={`Key term ${index + 1}`}
             />
-            <Button type="button" variant="outline" onClick={() => removeKeyTerm(index)}>Remove</Button>
+            <Button type="button" variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => removeKeyTerm(index)}>Remove</Button>
           </div>
         ))}
         <Button type="button" variant="outline" onClick={addKeyTerm}>Add Key Term</Button>
@@ -214,7 +214,7 @@ export default function ContractForm({ contract, suppliers, onSubmit, onCancel }
         />
       </div>
 
-      <div className="flex justify-end gap-3">
+      <div className="sticky bottom-0 z-10 -mx-6 flex justify-end gap-3 border-t bg-background/95 px-6 py-4 backdrop-blur">
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
         <Button type="submit">Save Contract</Button>
       </div>

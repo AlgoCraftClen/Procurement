@@ -161,12 +161,12 @@ export default function SupplierDetailModal({ supplier, isOpen, onClose, onEdit 
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader className="pb-4">
-          <div className="flex items-start justify-between">
-            <div>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1">
               <DialogTitle className="text-2xl font-bold text-slate-900 mb-2">
                 {supplier.company_name}
               </DialogTitle>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <ValidationBadge 
                   status={supplier.validation_status || 'pending'} 
                   score={supplier.confidence_score} 
@@ -177,7 +177,7 @@ export default function SupplierDetailModal({ supplier, isOpen, onClose, onEdit 
                 </Badge>
               </div>
             </div>
-            <Button variant="outline" onClick={() => onEdit(supplier)}>
+            <Button className="flex-shrink-0 sm:self-start" variant="outline" onClick={() => onEdit(supplier)}>
               Edit Supplier
             </Button>
           </div>

@@ -345,17 +345,19 @@ export default function IssuedItemsTab() {
                           ) : 'N/A'}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex flex-wrap justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                             <Button size="sm" variant="outline" onClick={() => handleReturnItem(item)}>
                               <RotateCcw className="w-4 h-4 mr-1" />
                               Return
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleEditItem(item)}>
+                            <div className="flex rounded-md border border-slate-200 bg-white">
+                            <Button variant="ghost" size="icon" onClick={() => handleEditItem(item)} aria-label="Edit issued item">
                               <Pencil className="w-4 h-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)}>
+                            <Button variant="ghost" size="icon" className="border-l border-slate-200 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => handleDelete(item.id)} aria-label="Delete issued item">
                               <Trash2 className="w-4 h-4 text-red-500" />
                             </Button>
+                            </div>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -379,13 +381,15 @@ export default function IssuedItemsTab() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" size="icon" onClick={() => handleEditItem(item)}>
+                          <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex rounded-md border border-slate-200 bg-white">
+                            <Button variant="ghost" size="icon" onClick={() => handleEditItem(item)} aria-label="Edit returned item">
                               <Pencil className="w-4 h-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)}>
+                            <Button variant="ghost" size="icon" className="border-l border-slate-200 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => handleDelete(item.id)} aria-label="Delete returned item">
                               <Trash2 className="w-4 h-4 text-red-500" />
                             </Button>
+                            </div>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -409,12 +413,12 @@ export default function IssuedItemsTab() {
                           <Badge variant="destructive">{`${daysOverdue} days`}</Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex flex-wrap justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                             <Button size="sm" variant="outline" onClick={() => handleReturnItem(item)}>
                               <RotateCcw className="w-4 h-4 mr-1" />
                               Return
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleEditItem(item)}>
+                            <Button variant="outline" size="icon" onClick={() => handleEditItem(item)} aria-label="Edit overdue issued item">
                               <Pencil className="w-4 h-4" />
                             </Button>
                           </div>

@@ -87,7 +87,11 @@ export default function PurchaseOrderDetailModal({ isOpen, onClose, onSaveSucces
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {poId ? `Edit Purchase Order: ${purchaseOrder?.po_number}` : "Create New Purchase Order"}
+            {poId
+              ? loading
+                ? "Loading Purchase Order"
+                : `Edit Purchase Order: ${purchaseOrder?.po_number || "Untitled PO"}`
+              : "Create New Purchase Order"}
           </DialogTitle>
           <DialogDescription>
             {poId ? "Update the details for this purchase order." : "Fill out the form to create a new purchase order."}

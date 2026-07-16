@@ -40,8 +40,8 @@ export default function GoodsReceiptDetailModal({ receipt, isOpen, onClose, onEd
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl">
         <DialogHeader className="pb-4">
-          <div className="flex items-start justify-between">
-            <div>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1">
               <DialogTitle className="text-2xl font-bold text-slate-900 mb-1">
                 Goods Receipt {receipt.receipt_number}
               </DialogTitle>
@@ -52,7 +52,7 @@ export default function GoodsReceiptDetailModal({ receipt, isOpen, onClose, onEd
                   </Badge>
               </DialogDescription>
             </div>
-            <Button variant="outline" onClick={() => { onClose(); onEdit(receipt); }}>Edit Receipt</Button>
+            <Button className="flex-shrink-0 sm:self-start" variant="outline" onClick={() => { onClose(); onEdit(receipt); }}>Edit Receipt</Button>
           </div>
         </DialogHeader>
 

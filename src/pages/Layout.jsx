@@ -1,7 +1,7 @@
 
 
 import React, { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import {
   LayoutDashboard,
@@ -60,6 +60,7 @@ const navigationItems = [
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [quickStats, setQuickStats] = useState({
     activeRFQs: 0,
     lowStockItems: 0,
@@ -67,6 +68,7 @@ export default function Layout({ children, currentPageName }) {
   });
   const [user, setUser] = useState(null);
   const [loadingUser, setLoadingUser] = useState(true);
+  const [headerSearch, setHeaderSearch] = useState("");
 
   // Force light mode always - override system preferences
   useEffect(() => {
@@ -174,7 +176,27 @@ export default function Layout({ children, currentPageName }) {
     return () => clearInterval(interval);
   }, []);
 
-  const pageTitle = currentPageName?.replace(/([A-Z])/g, ' $1').trim() || "Dashboard";
+  const pageTitleMap = {
+    RFQDetail: "Create RFQ",
+    AgentChat: "Lijakwe Chat",
+    GoodsReceipt: "Goods Receipt",
+    PurchaseOrders: "Purchase Orders",
+    Upload: "Upload Documents"
+  };
+  const pageTitle = pageTitleMap[currentPageName] || currentPageName?.replace(/([A-Z])/g, ' $1').trim() || "Dashboard";
+  const pageSearchMatches = headerSearch.trim()
+    ? navigationItems.filter((item) => item.title.toLowerCase().includes(headerSearch.trim().toLowerCase())).slice(0, 5)
+    : [];
+
+  const handleHeaderSearchKeyDown = (event) => {
+    if (event.key === "Enter" && pageSearchMatches[0]) {
+      navigate(pageSearchMatches[0].url);
+      setHeaderSearch("");
+    }
+    if (event.key === "Escape") {
+      setHeaderSearch("");
+    }
+  };
 
   if (loadingUser) {
     return (
@@ -273,7 +295,32 @@ export default function Layout({ children, currentPageName }) {
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-                  <Input placeholder="Search..." className="pl-10 w-64 bg-slate-50 border-slate-200 focus:bg-white" />
+                  <Input
+                    placeholder="Find a page..."
+                    value={headerSearch}
+                    onChange={(event) => setHeaderSearch(event.target.value)}
+                    onKeyDown={handleHeaderSearchKeyDown}
+                    className="pl-10 w-64 bg-slate-50 border-slate-200 focus:bg-white"
+                    aria-label="Find a page"
+                  />
+                  {pageSearchMatches.length > 0 && (
+                    <div className="absolute right-0 top-11 z-50 w-64 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+                      {pageSearchMatches.map((item) => (
+                        <button
+                          key={item.title}
+                          type="button"
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700"
+                          onClick={() => {
+                            navigate(item.url);
+                            setHeaderSearch("");
+                          }}
+                        >
+                          <item.icon className="h-4 w-4" />
+                          {item.title}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <NotificationBell />
                 <UserSettings />

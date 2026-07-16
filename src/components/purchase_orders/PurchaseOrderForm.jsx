@@ -173,7 +173,7 @@ export default function PurchaseOrderForm({ purchaseOrder, suppliers, onSave, on
   const isSaveDisabled = isSaving || (isDuplicatePoNumber && !purchaseOrder);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6 pb-24">
       {/* Header Information */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
@@ -291,33 +291,33 @@ export default function PurchaseOrderForm({ purchaseOrder, suppliers, onSave, on
         <Label className="text-lg">Line Items</Label>
         <div className="space-y-2">
           {formData.line_items.map((item, index) => (
-            <div key={index} className="grid grid-cols-12 gap-2 p-2 border rounded-md items-end">
-              <div className="col-span-1">
+            <div key={index} className="grid grid-cols-1 gap-3 rounded-md border bg-white p-3 md:grid-cols-12 md:items-end">
+              <div className="md:col-span-2">
                 <Label className="text-xs">Qty Ordered</Label>
                 <Input type="number" value={item.quantity_ordered} onChange={(e) => handleItemChange(index, 'quantity_ordered', e.target.value)} />
               </div>
-              <div className="col-span-1">
+              <div className="md:col-span-1">
                 <Label className="text-xs">Unit</Label>
                 <Input value={item.unit} onChange={(e) => handleItemChange(index, 'unit', e.target.value)} placeholder="EA" />
               </div>
-              <div className="col-span-2">
+              <div className="md:col-span-2">
                 <Label className="text-xs">Stock #</Label>
                 <Input value={item.stock_number} onChange={(e) => handleItemChange(index, 'stock_number', e.target.value)} />
               </div>
-              <div className="col-span-4">
+              <div className="md:col-span-3">
                 <Label className="text-xs">Description</Label>
                 <Input value={item.description} onChange={(e) => handleItemChange(index, 'description', e.target.value)} />
               </div>
-              <div className="col-span-2">
+              <div className="md:col-span-2">
                 <Label className="text-xs">Unit Price</Label>
                 <Input type="number" step="0.01" value={item.unit_price} onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)} />
               </div>
-              <div className="col-span-1">
+              <div className="md:col-span-1">
                 <Label className="text-xs">Total</Label>
                 <Input value={item.total_price} readOnly />
               </div>
-              <div className="col-span-1">
-                <Button type="button" variant="destructive" size="icon" onClick={() => removeItem(index)}><Trash2 className="w-4 h-4" /></Button>
+              <div className="flex justify-end md:col-span-1">
+                <Button type="button" variant="outline" size="icon" className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => removeItem(index)} disabled={formData.line_items.length === 1} aria-label="Remove purchase order line item"><Trash2 className="w-4 h-4" /></Button>
               </div>
             </div>
           ))}
@@ -350,7 +350,7 @@ export default function PurchaseOrderForm({ purchaseOrder, suppliers, onSave, on
         <Textarea name="notes" value={formData.notes} onChange={handleInputChange} />
       </div>
 
-      <div className="flex justify-end gap-3 pt-4">
+      <div className="sticky bottom-0 z-10 -mx-6 flex justify-end gap-3 border-t bg-background/95 px-6 py-4 backdrop-blur">
         <Button type="button" variant="outline" onClick={onCancel} disabled={isSaving}>
           Cancel
         </Button>

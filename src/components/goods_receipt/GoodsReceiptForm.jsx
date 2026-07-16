@@ -80,7 +80,7 @@ export default function GoodsReceiptForm({ receipt, suppliers, purchaseOrders, o
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6 pb-24">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <Label>Receipt Number*</Label>
@@ -125,23 +125,23 @@ export default function GoodsReceiptForm({ receipt, suppliers, purchaseOrders, o
         <Label>Received Items</Label>
         <div className="space-y-2">
           {formData.line_items.map((item, index) => (
-            <div key={index} className="flex items-end gap-2 p-3 border rounded-md">
-              <div className="flex-1">
+            <div key={index} className="grid grid-cols-1 gap-3 rounded-md border bg-white p-3 md:grid-cols-12 md:items-end">
+              <div className="md:col-span-4">
                 <Label className="text-xs">Description</Label>
                 <Input value={item.description} onChange={(e) => handleItemChange(index, 'description', e.target.value)} />
               </div>
-              <div>
+              <div className="md:col-span-1">
                 <Label className="text-xs">Ordered</Label>
-                <Input type="number" value={item.ordered_quantity} onChange={(e) => handleItemChange(index, 'ordered_quantity', e.target.value)} className="w-20" />
+                <Input type="number" value={item.ordered_quantity} onChange={(e) => handleItemChange(index, 'ordered_quantity', e.target.value)} />
               </div>
-              <div>
+              <div className="md:col-span-1">
                 <Label className="text-xs">Received</Label>
-                <Input type="number" value={item.received_quantity} onChange={(e) => handleItemChange(index, 'received_quantity', e.target.value)} className="w-20" />
+                <Input type="number" value={item.received_quantity} onChange={(e) => handleItemChange(index, 'received_quantity', e.target.value)} />
               </div>
-              <div>
+              <div className="md:col-span-2">
                 <Label className="text-xs">Condition</Label>
                 <Select value={item.condition} onValueChange={v => handleItemChange(index, 'condition', v)}>
-                  <SelectTrigger className="w-24">
+                  <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -151,11 +151,11 @@ export default function GoodsReceiptForm({ receipt, suppliers, purchaseOrders, o
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex-1">
+              <div className="md:col-span-3">
                 <Label className="text-xs">Notes</Label>
                 <Input value={item.notes} onChange={(e) => handleItemChange(index, 'notes', e.target.value)} placeholder="Item notes" />
               </div>
-              <Button type="button" variant="destructive" size="icon" onClick={() => removeItem(index)}>
+              <Button type="button" variant="outline" size="icon" className="justify-self-end border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 md:col-span-1" onClick={() => removeItem(index)} disabled={formData.line_items.length === 1} aria-label="Remove received item">
                 <Trash2 className="w-4 h-4" />
               </Button>
             </div>
@@ -191,7 +191,7 @@ export default function GoodsReceiptForm({ receipt, suppliers, purchaseOrders, o
         <Textarea name="notes" value={formData.notes} onChange={handleChange} rows={3} />
       </div>
 
-      <div className="flex justify-end gap-3">
+      <div className="sticky bottom-0 z-10 -mx-6 flex justify-end gap-3 border-t bg-background/95 px-6 py-4 backdrop-blur">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>

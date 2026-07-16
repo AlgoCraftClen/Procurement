@@ -150,7 +150,7 @@ export default function InvoiceForm({
   const isSaveDisabled = isSubmitting || (isDuplicateInvoiceNumber && !invoice?.id);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6 pb-24">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <Label htmlFor="invoice_number">Invoice Number*</Label>
@@ -255,8 +255,8 @@ export default function InvoiceForm({
         <Label>Line Items</Label>
         <div className="space-y-2">
           {formData.line_items.map((item, index) => (
-            <div key={index} className="flex items-end gap-2 p-2 border rounded-md">
-              <div className="flex-1">
+            <div key={index} className="grid grid-cols-1 gap-3 rounded-md border bg-white p-3 md:grid-cols-12 md:items-end">
+              <div className="md:col-span-5">
                 <Label className="text-xs">Description</Label>
                 <Input 
                   value={item.description} 
@@ -264,37 +264,37 @@ export default function InvoiceForm({
                   disabled={isSubmitting}
                 />
               </div>
-              <div>
+              <div className="md:col-span-2">
                 <Label className="text-xs">Qty</Label>
                 <Input 
                   type="number" 
                   value={item.quantity} 
                   onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} 
-                  className="w-20" 
                   disabled={isSubmitting}
                 />
               </div>
-              <div>
+              <div className="md:col-span-2">
                 <Label className="text-xs">Unit Price</Label>
                 <Input 
                   type="number" 
                   step="0.01" 
                   value={item.unit_price} 
                   onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)} 
-                  className="w-24" 
                   disabled={isSubmitting}
                 />
               </div>
-              <div>
+              <div className="md:col-span-2">
                 <Label className="text-xs">Total</Label>
-                <Input value={item.total_price} className="w-24" readOnly />
+                <Input value={item.total_price} readOnly />
               </div>
               <Button 
                 type="button" 
-                variant="destructive" 
+                variant="outline" 
                 size="icon" 
+                className="justify-self-end border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 md:col-span-1"
                 onClick={() => removeItem(index)}
                 disabled={isSubmitting || formData.line_items.length === 1}
+                aria-label="Remove invoice line item"
               >
                 <Trash2 className="w-4 h-4" />
               </Button>
@@ -405,7 +405,7 @@ export default function InvoiceForm({
         />
       </div>
 
-      <div className="flex justify-end gap-3">
+      <div className="sticky bottom-0 z-10 -mx-6 flex justify-end gap-3 border-t bg-background/95 px-6 py-4 backdrop-blur">
         <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
           Cancel
         </Button>

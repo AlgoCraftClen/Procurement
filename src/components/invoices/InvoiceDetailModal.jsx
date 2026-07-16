@@ -58,8 +58,8 @@ export default function InvoiceDetailModal({ invoice, isOpen, onClose, onEdit, o
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl">
         <DialogHeader className="pb-4">
-          <div className="flex items-start justify-between">
-            <div className="flex-1 mr-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1">
               <DialogTitle className="text-2xl font-bold text-slate-900 mb-1">
                 Invoice {invoice.invoice_number}
               </DialogTitle>
@@ -70,7 +70,7 @@ export default function InvoiceDetailModal({ invoice, isOpen, onClose, onEdit, o
                   </Badge>
               </DialogDescription>
             </div>
-            <div className="flex gap-3 flex-shrink-0">
+            <div className="flex flex-shrink-0 flex-wrap gap-3 sm:justify-end">
               <Button variant="outline" onClick={() => { onClose(); onEdit(invoice); }}>
                 Edit Invoice
               </Button>
