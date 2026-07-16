@@ -13,6 +13,7 @@ import { updateBudgetOnInvoice } from "@/api/functions";
 import DataConfirmationForm from "../components/upload/DataConfirmationForm";
 import SupplierDecisionModal from "../components/upload/SupplierDecisionModal";
 import { Upload, FileText, AlertCircle, Check, Loader2, Wand2, FileQuestion, FileImage, FileSpreadsheet } from "lucide-react";
+import { createPageUrl } from "@/utils";
 
 // Enhanced utility function for robust supplier name comparison
 const normalizeSupplierName = (name) => {
@@ -437,10 +438,10 @@ Respond with:
           `AI Analysis: ${classificationResult.reasoning}\n` +
           `Confidence: ${classificationResult.confidence}%\n\n` +
           `Tips for better recognition:\n` +
-          `• Ensure the document is a clear, high-resolution scan\n` +
-          `• Make sure it's a Purchase Order, Invoice, or Goods Receipt\n` +
-          `• Check that key headers and numbers are clearly visible\n` +
-          `• Avoid heavily handwritten or stylized documents`
+          `- Ensure the document is a clear, high-resolution scan\n` +
+          `- Make sure it's a Purchase Order, Invoice, or Goods Receipt\n` +
+          `- Check that key headers and numbers are clearly visible\n` +
+          `- Avoid heavily handwritten or stylized documents`
         );
         setStep('initial');
         return;
@@ -662,8 +663,6 @@ Respond with:
           return;
         }
 
-        const createPageUrl = (path) => `/dashboard/${path}`;
-
         const assignments = finalData.assignments || [];
         const documentData = { ...finalData };
         delete documentData.assignments;
@@ -798,7 +797,7 @@ Respond with:
                 </p>
                 <p className="text-sm text-slate-500 mb-4">Supports PDF, Word, Excel, PowerPoint, and images (PNG, JPG, JPEG)</p>
                 <p className="text-xs text-slate-400 mb-4">
-                  💡 Tip: For best results, use clear, high-resolution scans with visible headers and numbers
+                  Tip: For best results, use clear, high-resolution scans with visible headers and numbers
                 </p>
                 <Button variant="outline" onClick={() => fileInputRef.current?.click()}>Browse Files</Button>
               </div>
@@ -819,8 +818,8 @@ Respond with:
   const ProcessingIndicator = ({ step }) => {
       const messages = {
           uploading: "Uploading file...",
-          classifying: "🔍 Analyzing document structure and identifying type (Invoice, PO, or Goods Receipt)...",
-          extracting: "📊 Extracting all data fields, line items, and details from the document...",
+          classifying: "Analyzing document structure and identifying type (Invoice, PO, or Goods Receipt)...",
+          extracting: "Extracting all data fields, line items, and details from the document...",
       };
       return (
           <div className="text-center p-16 border-2 border-dashed rounded-lg">

@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
-import { debounce } from 'lodash';
+import { useState, useEffect } from 'react';
 
 /**
  * A reusable React hook to check for duplicate records in real-time.
@@ -19,66 +18,44 @@ export function useDuplicateCheck({ entity, field, value, idToIgnore = null, add
   // Use JSON.stringify to create a stable dependency for the filters object.
   const additionalFiltersJSON = JSON.stringify(additionalFilters);
 
-  const performCheck = useCallback(debounce(async (checkValue, filters, recordIdToIgnore) => {
-    if (!checkValue || !entity) {
-      setIsChecking(false);
-      setIsDuplicate(false);
-      setDuplicateRecord(null);
-      return;
-    }
-
-    setIsChecking(true);
-    try {
-      const queryFilters = {
-        [field]: checkValue,
-        ...filters
-      };
-      
-      const results = await entity.filter(queryFilters);
-      
-      let foundDuplicate = false;
-      let foundRecord = null;
-
-      if (results && results.length > 0) {
-        // If we are editing, we need to make sure the found record is not the one we are currently editing.
-        const otherRecords = recordIdToIgnore 
-          ? results.filter(record => record.id !== recordIdToIgnore) 
-          : results;
-
-        if (otherRecords.length > 0) {
-          foundDuplicate = true;
-          foundRecord = otherRecords[0];
-        }
-      }
-      
-      setIsDuplicate(foundDuplicate);
-      setDuplicateRecord(foundRecord);
-
-    } catch (error) {
-      console.error(`Duplicate check failed for ${field}:`, error);
-      // In case of an error, we default to not blocking the user.
-      setIsDuplicate(false);
-      setDuplicateRecord(null);
-    } finally {
-      setIsChecking(false);
-    }
-  }, 500), [entity, field]); // Debounce is created once per entity/field combo.
-
   useEffect(() => {
     const filters = JSON.parse(additionalFiltersJSON);
     // Only perform check if the value is not empty and any required additional filters are present
     const canCheck = Object.values(filters).every(val => val);
 
-    if (value && canCheck) {
-      performCheck(value, filters, idToIgnore);
-    } else {
-      // Reset state if value is cleared or dependencies are missing
+    if (!value || !canCheck || !entity) {
       setIsDuplicate(false);
       setDuplicateRecord(null);
       setIsChecking(false);
-      performCheck.cancel();
+      return undefined;
     }
-  }, [value, idToIgnore, additionalFiltersJSON, performCheck]);
+
+    setIsChecking(true);
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const queryFilters = {
+          [field]: value,
+          ...filters
+        };
+
+        const results = await entity.filter(queryFilters);
+        const otherRecords = idToIgnore
+          ? (results || []).filter(record => record.id !== idToIgnore)
+          : (results || []);
+
+        setIsDuplicate(otherRecords.length > 0);
+        setDuplicateRecord(otherRecords[0] || null);
+      } catch (error) {
+        console.error(`Duplicate check failed for ${field}:`, error);
+        setIsDuplicate(false);
+        setDuplicateRecord(null);
+      } finally {
+        setIsChecking(false);
+      }
+    }, 500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [entity, field, value, idToIgnore, additionalFiltersJSON]);
 
   return { isChecking, isDuplicate, duplicateRecord };
 }

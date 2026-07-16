@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -46,13 +46,7 @@ export default function LabelGenerator({ isOpen, onClose, item, itemType }) {
   const [barcodeUrl, setBarcodeUrl] = useState('');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (isOpen && item) {
-      generateBarcodes();
-    }
-  }, [isOpen, item]);
-
-  const generateBarcodes = async () => {
+  const generateBarcodes = useCallback(async () => {
     setLoading(true);
     try {
       let identifier = '';
@@ -81,7 +75,13 @@ export default function LabelGenerator({ isOpen, onClose, item, itemType }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [item, itemType]);
+
+  useEffect(() => {
+    if (isOpen && item) {
+      generateBarcodes();
+    }
+  }, [isOpen, item, generateBarcodes]);
 
   const handlePrint = () => {
     window.print();

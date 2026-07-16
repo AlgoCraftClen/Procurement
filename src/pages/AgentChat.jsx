@@ -274,7 +274,7 @@ export default function AgentChatPage() {
             </Button>
           </div>
           <div className="text-xs text-slate-500 mt-3 text-center">
-            🎯 Ask complex questions • Request detailed analysis • Generate strategic reports • Get actionable recommendations
+            Ask complex questions - Request detailed analysis - Generate strategic reports - Get actionable recommendations
           </div>
         </div>
       </Card>

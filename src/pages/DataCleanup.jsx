@@ -79,7 +79,7 @@ export default function DataCleanupPage() {
                     <div key={index} className="border-b pb-2 mb-2 last:border-b-0">
                       <p className="font-medium">Invoice #{duplicate.invoice_number}</p>
                       <p className="text-sm text-slate-600">
-                        {duplicate.total_count} copies found • Keeping original from {new Date(duplicate.original.created_date).toLocaleDateString()}
+                        {duplicate.total_count} copies found - Keeping original from {new Date(duplicate.original.created_date).toLocaleDateString()}
                       </p>
                       <p className="text-sm text-red-600">
                         Will delete {duplicate.duplicates_to_delete.length} duplicates

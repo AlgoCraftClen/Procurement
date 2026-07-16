@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useLocation, useParams, useNavigate } from "react-router-dom";
 import { RFQ } from '@/api/entities';
 import { Supplier } from '@/api/entities';
 import { RFQResponse } from '@/api/entities';
@@ -14,25 +14,18 @@ import RFQComparisonTable from "../components/rfqs/RFQComparisonTable";
 
 export default function RFQDetailPage() {
   const navigate = useNavigate();
-  const { id: paramId } = useParams(); // Using useParams for route ID
+  const location = useLocation();
+  const { id: paramId } = useParams();
   const [rfq, setRfq] = useState(null);
   const [responses, setResponses] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Use paramId directly, no need for useMemo with URLSearchParams if using route params
-  const rfqId = paramId;
-
-  useEffect(() => {
-    if (rfqId) {
-      loadRFQDetails();
-    } else {
-      setLoading(false);
-    }
-    loadSuppliers();
-  }, [rfqId]);
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const rfqId = paramId || searchParams.get("id");
 
   const loadRFQDetails = useCallback(async () => {
+    if (!rfqId) return;
     setLoading(true);
     try {
       const [rfqData, responseData] = await Promise.all([
@@ -49,14 +42,23 @@ export default function RFQDetailPage() {
     }
   }, [rfqId]);
 
-  const loadSuppliers = async () => {
+  const loadSuppliers = useCallback(async () => {
     try {
       const supplierData = await Supplier.list();
       setSuppliers(supplierData);
     } catch (error) {
       console.error("Failed to load suppliers:", error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (rfqId) {
+      loadRFQDetails();
+    } else {
+      setLoading(false);
+    }
+    loadSuppliers();
+  }, [rfqId, loadRFQDetails, loadSuppliers]);
 
   const handleSave = async (data) => {
     let savedRfq;
@@ -70,7 +72,7 @@ export default function RFQDetailPage() {
         };
         savedRfq = await RFQ.create(newRfqData);
       }
-      navigate(createPageUrl(`RFQDetail?id=${savedRfq.id}`)); // Navigating with query param for consistency with existing logic
+      navigate(createPageUrl(`RFQDetail?id=${savedRfq.id}`));
     } catch (error) {
       console.error("Failed to save RFQ:", error);
       // Optionally show an error message to the user

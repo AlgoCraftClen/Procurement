@@ -119,7 +119,7 @@ const StatCard = ({
                     <p className="text-sm font-medium text-slate-600">{title}</p>
                     {alertLevel && (
                       <Badge variant={alertLevel === 'critical' ? 'destructive' : 'warning'} className="h-4 px-1 text-xs">
-                        {alertLevel === 'critical' ? '!' : '⚠'}
+                        {alertLevel === 'critical' ? '!' : 'Warning'}
                       </Badge>
                     )}
                   </div>
@@ -709,7 +709,7 @@ Focus on:
                 <p className="text-sm font-medium text-green-800">New Access Code Generated</p>
                 <p className="text-2xl font-mono font-bold text-green-900 mt-1 tracking-wider">{generatedCode}</p>
                 <p className="text-xs text-green-600 mt-1">
-                  ⏰ Code expires in 10 minutes • Share this with the new user immediately
+                  Code expires in 10 minutes - Share this with the new user immediately
                 </p>
               </div>
               <Button
