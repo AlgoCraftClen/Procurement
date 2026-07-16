@@ -13,6 +13,26 @@ hosting service to override those defaults.
 
 ## Running the app
 
+From GitHub on a Windows computer:
+
+```powershell
+git clone https://github.com/AlgoCraftClen/Procurement.git
+cd Procurement
+powershell -ExecutionPolicy Bypass -File .\start-local.ps1
+```
+
+Or double-click `start-local.bat` from the cloned folder.
+
+The app will open locally at:
+
+```text
+http://127.0.0.1:5173
+```
+
+The local app connects to the Tobolar Supabase backend automatically.
+
+Manual startup:
+
 ```bash
 npm install
 npm run dev
