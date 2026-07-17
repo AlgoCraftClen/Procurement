@@ -8,6 +8,10 @@ import { Invoice } from "@/api/entities";
 import { GoodsReceipt } from "@/api/entities";
 import { Supplier } from "@/api/entities";
 import { Department } from "@/api/entities";
+import { RawMaterial } from "@/api/entities";
+import { Equipment } from "@/api/entities";
+import { FinishedGood } from "@/api/entities";
+import { IssuedItem } from "@/api/entities";
 import { Notification } from "@/api/entities";
 import { updateBudgetOnInvoice } from "@/api/functions";
 import DataConfirmationForm from "../components/upload/DataConfirmationForm";
@@ -15,6 +19,7 @@ import SupplierDecisionModal from "../components/upload/SupplierDecisionModal";
 import { Upload, FileText, AlertCircle, Check, Loader2, Wand2, FileQuestion, FileImage, FileSpreadsheet, ExternalLink } from "lucide-react";
 import { createPageUrl } from "@/utils";
 import { Link } from "react-router-dom";
+import { normalizeLineItemsForDocument, toNumber } from "@/lib/procurementData";
 
 // Enhanced utility function for robust supplier name comparison
 const normalizeSupplierName = (name) => {
@@ -151,6 +156,7 @@ export default function SmartUploadPage() {
   const [resolvedSupplierId, setResolvedSupplierId] = useState(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [departments, setDepartments] = useState([]);
+  const [inventoryData, setInventoryData] = useState({ rawMaterials: [], equipment: [], finishedGoods: [] });
 
   const fileInputRef = useRef(null);
 
@@ -167,6 +173,7 @@ export default function SmartUploadPage() {
     setResolvedSupplierId(null);
     setIsDragOver(false);
     setDepartments([]);
+    setInventoryData({ rawMaterials: [], equipment: [], finishedGoods: [] });
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -261,21 +268,30 @@ export default function SmartUploadPage() {
     let supplierData = [];
     let poData = [];
     let departmentData = [];
+    let rawMaterialsData = [];
+    let equipmentData = [];
+    let finishedGoodsData = [];
 
     try {
       console.log('[Upload] ========== STARTING DOCUMENT PROCESSING ==========');
       console.log('[Upload] Step 1: Loading suppliers, POs, and departments...');
       
-      [supplierData, poData, departmentData] = await Promise.all([
+      [supplierData, poData, departmentData, rawMaterialsData, equipmentData, finishedGoodsData] = await Promise.all([
         Supplier.list(),
         PurchaseOrder.list(),
-        Department.list()
+        Department.list(),
+        RawMaterial.list(),
+        Equipment.list(),
+        FinishedGood.list()
       ]);
       
       console.log('[Upload] ✅ Data loaded successfully:');
       console.log('[Upload]    - Suppliers:', supplierData?.length || 0);
       console.log('[Upload]    - Purchase Orders:', poData?.length || 0);
       console.log('[Upload]    - Departments:', departmentData?.length || 0);
+      console.log('[Upload]    - Raw materials:', rawMaterialsData?.length || 0);
+      console.log('[Upload]    - Equipment:', equipmentData?.length || 0);
+      console.log('[Upload]    - Finished goods:', finishedGoodsData?.length || 0);
       
       // Debug: Log all supplier names
       console.log('[Upload] 📋 All suppliers in database:');
@@ -288,6 +304,11 @@ export default function SmartUploadPage() {
       setSuppliers(supplierData);
       setPurchaseOrders(poData);
       setDepartments(departmentData || []);
+      setInventoryData({
+        rawMaterials: rawMaterialsData || [],
+        equipment: equipmentData || [],
+        finishedGoods: finishedGoodsData || []
+      });
       
     } catch (e) {
       console.error("[Upload] ❌ Failed to load initial data:", e);
@@ -578,7 +599,7 @@ Respond with:
       if (extractionResult) {
         const extractedInfo = {
           ...extractionResult,
-          line_items: Array.isArray(extractionResult.line_items) ? extractionResult.line_items : []
+          line_items: normalizeLineItemsForDocument(docType, extractionResult.line_items || [])
         };
         setExtractedData(extractedInfo);
         
@@ -666,6 +687,176 @@ Respond with:
     setResolvedSupplierId(null);
     setShowSupplierModal(false);
   };
+
+  const getInventoryEntity = (itemType) => {
+    if (itemType === 'raw_material') return RawMaterial;
+    if (itemType === 'equipment') return Equipment;
+    if (itemType === 'finished_good') return FinishedGood;
+    return null;
+  };
+
+  const getInventoryCollection = (itemType) => {
+    if (itemType === 'raw_material') return inventoryData.rawMaterials || [];
+    if (itemType === 'equipment') return inventoryData.equipment || [];
+    if (itemType === 'finished_good') return inventoryData.finishedGoods || [];
+    return [];
+  };
+
+  const getInventoryName = (itemType, item) => {
+    if (!item) return '';
+    if (itemType === 'raw_material') return item.material_name || item.item_name || item.name || '';
+    if (itemType === 'equipment') return item.equipment_name || item.item_name || item.name || '';
+    if (itemType === 'finished_good') return item.product_name || item.item_name || item.name || '';
+    return item.item_name || item.name || '';
+  };
+
+  const createInventoryRecord = async (assignment, lineItem) => {
+    const entity = getInventoryEntity(assignment.itemType);
+    if (!entity) return null;
+
+    const baseName = lineItem.description || assignment.itemDescription || 'Uploaded item';
+    const unit = lineItem.unit_of_measure || lineItem.unit || 'units';
+
+    if (assignment.itemType === 'raw_material') {
+      return entity.create({
+        material_name: baseName,
+        sku: lineItem.stock_number || lineItem.item_number || `RM-${Date.now()}`,
+        category: lineItem.category || 'Uploaded Document',
+        current_quantity: 0,
+        unit_of_measure: unit,
+        unit_cost: toNumber(lineItem.unit_price, 0),
+        supplier_id: resolvedSupplierId || null,
+        department_id: assignment.assignToDepartment || null,
+        notes: `Created during ${documentType.replace('_', ' ')} verification.`
+      });
+    }
+
+    if (assignment.itemType === 'equipment') {
+      return entity.create({
+        equipment_name: baseName,
+        asset_tag: lineItem.stock_number || lineItem.item_number || `EQ-${Date.now()}`,
+        serial_number: lineItem.serial_number || '',
+        category: lineItem.category || 'Uploaded Document',
+        status: 'idle',
+        location: assignment.assignToDepartment || '',
+        purchase_price: toNumber(lineItem.total_price || lineItem.unit_price, 0),
+        supplier_id: resolvedSupplierId || null,
+        notes: `Created during ${documentType.replace('_', ' ')} verification.`
+      });
+    }
+
+    return entity.create({
+      product_name: baseName,
+      sku: lineItem.stock_number || lineItem.item_number || `FG-${Date.now()}`,
+      batch_number: '',
+      quantity: 0,
+      unit_of_measure: unit,
+      cost_per_unit: toNumber(lineItem.unit_price, 0),
+      notes: `Created during ${documentType.replace('_', ' ')} verification.`
+    });
+  };
+
+  const updateInventoryQuantity = async (assignment, inventoryItem, lineItem) => {
+    if (!inventoryItem || !assignment.receiveToInventory) return inventoryItem;
+
+    const quantityToAdd = toNumber(assignment.stockQuantity, 0);
+    if (quantityToAdd <= 0) return inventoryItem;
+
+    if (assignment.itemType === 'raw_material') {
+      return RawMaterial.update(inventoryItem.id, {
+        current_quantity: toNumber(inventoryItem.current_quantity, 0) + quantityToAdd,
+        unit_of_measure: inventoryItem.unit_of_measure || lineItem.unit_of_measure || lineItem.unit || 'units',
+        unit_cost: toNumber(lineItem.unit_price, inventoryItem.unit_cost || 0),
+        department_id: assignment.assignToDepartment || inventoryItem.department_id || null
+      });
+    }
+
+    if (assignment.itemType === 'finished_good') {
+      return FinishedGood.update(inventoryItem.id, {
+        quantity: toNumber(inventoryItem.quantity, 0) + quantityToAdd,
+        unit_of_measure: inventoryItem.unit_of_measure || lineItem.unit_of_measure || lineItem.unit || 'units',
+        cost_per_unit: toNumber(lineItem.unit_price, inventoryItem.cost_per_unit || 0)
+      });
+    }
+
+    if (assignment.itemType === 'equipment') {
+      return Equipment.update(inventoryItem.id, {
+        status: assignment.issueNow ? 'in_use' : 'idle',
+        location: assignment.assignToDepartment || inventoryItem.location || ''
+      });
+    }
+
+    return inventoryItem;
+  };
+
+  const applyInventoryAssignments = async (finalData) => {
+    const assignments = finalData.assignments || [];
+    if (!assignments.length) return finalData.line_items || [];
+
+    const updatedLineItems = (finalData.line_items || []).map(item => ({ ...item }));
+
+    for (const assignment of assignments) {
+      const lineItem = finalData.line_items?.[assignment.itemIndex];
+      if (!lineItem || !assignment.itemType || assignment.itemType === 'none') continue;
+
+      let inventoryItem = null;
+      if (assignment.itemId && assignment.itemId !== 'create_new') {
+        inventoryItem = getInventoryCollection(assignment.itemType).find(item => item.id === assignment.itemId) || null;
+      } else if (assignment.itemId === 'create_new') {
+        inventoryItem = await createInventoryRecord(assignment, lineItem);
+      }
+
+      if (inventoryItem) {
+        inventoryItem = await updateInventoryQuantity(assignment, inventoryItem, lineItem);
+        if (updatedLineItems[assignment.itemIndex]) {
+          updatedLineItems[assignment.itemIndex] = {
+            ...updatedLineItems[assignment.itemIndex],
+            item_type: assignment.itemType,
+            item_id: inventoryItem.id,
+            department_id: assignment.assignToDepartment || updatedLineItems[assignment.itemIndex].department_id || null,
+            distribution_status: 'reviewed',
+            receive_to_inventory: !!assignment.receiveToInventory
+          };
+        }
+      }
+
+      if (assignment.issueNow && toNumber(assignment.assignQuantity, 0) > 0 && assignment.assignToEmployee) {
+        const issueQuantity = toNumber(assignment.assignQuantity, 0);
+        const unit = lineItem.unit_of_measure || lineItem.unit || inventoryItem?.unit_of_measure || 'units';
+
+        await IssuedItem.create({
+          item_type: assignment.itemType,
+          item_id: inventoryItem?.id || null,
+          item_name: getInventoryName(assignment.itemType, inventoryItem) || lineItem.description,
+          sku_or_serial: inventoryItem?.sku || inventoryItem?.asset_tag || inventoryItem?.serial_number || lineItem.stock_number || 'N/A',
+          quantity_issued: issueQuantity,
+          unit_of_measure: unit,
+          issued_to_employee: assignment.assignToEmployee,
+          issued_to_department: assignment.assignToDepartment || '',
+          issue_date: new Date().toISOString().split('T')[0],
+          expected_return_date: assignment.expectedReturnDate || null,
+          status: 'issued',
+          purpose: assignment.purpose || `Issued during ${documentType.replace('_', ' ')} verification`,
+          notes: `Auto-issued during document upload verification: ${documentType}`,
+          issued_by: 'Smart Upload Verification'
+        });
+
+        if (inventoryItem && assignment.itemType === 'raw_material') {
+          await RawMaterial.update(inventoryItem.id, {
+            current_quantity: Math.max(0, toNumber(inventoryItem.current_quantity, 0) - issueQuantity)
+          });
+        } else if (inventoryItem && assignment.itemType === 'finished_good') {
+          await FinishedGood.update(inventoryItem.id, {
+            quantity: Math.max(0, toNumber(inventoryItem.quantity, 0) - issueQuantity)
+          });
+        } else if (inventoryItem && assignment.itemType === 'equipment') {
+          await Equipment.update(inventoryItem.id, { status: 'in_use' });
+        }
+      }
+    }
+
+    return updatedLineItems;
+  };
   
   const handleSave = async (finalData) => {
     setStep('saving');
@@ -737,33 +928,31 @@ Respond with:
         }
 
         if (assignments.length > 0) {
-            const { IssuedItem } = await import('@/api/entities');
-            
-            for (const assignment of assignments) {
-                if (assignment.assignQuantity > 0 && assignment.assignToEmployee) {
-                    const lineItem = finalData.line_items[assignment.itemIndex];
-                    
-                    try {
-                        await IssuedItem.create({
-                            item_type: lineItem.item_type || 'raw_material',
-                            item_id: null,
-                            item_name: lineItem.description,
-                            sku_or_serial: 'N/A',
-                            quantity_issued: assignment.assignQuantity,
-                            unit_of_measure: 'units',
-                            issued_to_employee: assignment.assignToEmployee,
-                            issued_to_department: assignment.assignToDepartment,
-                            issue_date: new Date().toISOString().split('T')[0],
-                            expected_return_date: assignment.expectedReturnDate || null,
-                            status: 'issued',
-                            purpose: assignment.purpose,
-                            notes: `Auto-assigned during document upload: ${documentType}`,
-                            issued_by: 'Smart Upload System'
-                        });
-                    } catch (assignmentError) {
-                        console.error(`Failed to create assignment for ${lineItem.description}:`, assignmentError);
-                    }
+            try {
+              const distributedLineItems = await applyInventoryAssignments({
+                ...finalData,
+                line_items: documentData.line_items || []
+              });
+
+              if (distributedLineItems?.length) {
+                const updatePayload = { line_items: distributedLineItems };
+                if (documentType === 'purchase_order') {
+                  await PurchaseOrder.update(savedRecord.id, updatePayload);
+                } else if (documentType === 'invoice') {
+                  await Invoice.update(savedRecord.id, updatePayload);
+                } else if (documentType === 'goods_receipt') {
+                  await GoodsReceipt.update(savedRecord.id, updatePayload);
                 }
+              }
+            } catch (assignmentError) {
+              console.error("Inventory distribution or issuing failed:", assignmentError);
+              await Notification.create({
+                recipient_id: 'admin',
+                type: 'alert',
+                title: 'Document saved, inventory distribution needs review',
+                message: `The ${documentType.replace('_', ' ')} was saved, but one or more inventory distribution actions failed: ${assignmentError.message}`,
+                action_url: createPageUrl("Inventory")
+              });
             }
         }
 
@@ -923,6 +1112,7 @@ Respond with:
           suppliers={suppliers}
           purchaseOrders={purchaseOrders}
           departments={departments}
+          inventoryData={inventoryData}
           onSave={handleSave}
           onCancel={resetState}
           isSaving={step === 'saving'}

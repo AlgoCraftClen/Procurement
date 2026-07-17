@@ -6,8 +6,9 @@ import { Supplier } from "@/api/entities";
 import { RFQ } from "@/api/entities";
 import { RFQResponse } from "@/api/entities";
 import { Button } from "@/components/ui/button";
-import { Loader2, Package, Receipt } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import PurchaseOrderForm from "./PurchaseOrderForm";
+import { normalizeLineItemsForDocument, normalizePurchaseOrderRecord } from "@/lib/procurementData";
 
 export default function PurchaseOrderDetailModal({ isOpen, onClose, onSaveSuccess, poId, fromRfqId, winningResponseId }) {
   const [purchaseOrder, setPurchaseOrder] = useState(null);
@@ -22,7 +23,7 @@ export default function PurchaseOrderDetailModal({ isOpen, onClose, onSaveSucces
 
       if (poId) {
         const poData = await PurchaseOrder.get(poId);
-        setPurchaseOrder(poData);
+        setPurchaseOrder(normalizePurchaseOrderRecord(poData));
       } else if (fromRfqId && winningResponseId) {
         const [rfq, response] = await Promise.all([
             RFQ.get(fromRfqId),
@@ -33,7 +34,7 @@ export default function PurchaseOrderDetailModal({ isOpen, onClose, onSaveSucces
             supplier_id: response.supplier_id,
             order_date: new Date().toISOString().split('T')[0],
             status: 'draft',
-            line_items: response.line_items || rfq.line_items,
+            line_items: normalizeLineItemsForDocument("purchase_order", response.line_items || rfq.line_items),
             total_amount: response.total_cost,
             payment_terms: response.payment_terms,
             rfq_id: rfq.id,
@@ -46,7 +47,7 @@ export default function PurchaseOrderDetailModal({ isOpen, onClose, onSaveSucces
           po_number: `PO-${Date.now()}`,
           order_date: new Date().toISOString().split('T')[0],
           status: 'draft',
-          line_items: [{ description: "", quantity: 1, unit_price: 0, total_price: 0 }],
+          line_items: normalizeLineItemsForDocument("purchase_order", [{ description: "", quantity_ordered: 1, unit_price: 0, total_price: 0 }]),
         });
       }
     } catch (error) {
@@ -69,10 +70,10 @@ export default function PurchaseOrderDetailModal({ isOpen, onClose, onSaveSucces
   const handleSave = async (data) => {
     let savedPO;
     if (poId) {
-      savedPO = await PurchaseOrder.update(poId, data);
+      savedPO = await PurchaseOrder.update(poId, normalizePurchaseOrderRecord(data));
     } else {
       savedPO = await PurchaseOrder.create({
-        ...data,
+        ...normalizePurchaseOrderRecord(data),
         po_number: data.po_number || `PO-${Date.now()}`,
       });
       if (fromRfqId) {

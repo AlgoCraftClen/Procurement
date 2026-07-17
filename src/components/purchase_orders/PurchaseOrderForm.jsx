@@ -8,6 +8,17 @@ import { Plus, Trash2, Loader2, AlertCircle } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { PurchaseOrder } from "@/api/entities";
 import { useDuplicateCheck } from "../shared/useDuplicateCheck";
+import { calculateLineItemsTotal, normalizePurchaseOrderLineItem, normalizePurchaseOrderRecord, toNumber } from "@/lib/procurementData";
+
+const defaultLineItem = () => normalizePurchaseOrderLineItem({
+  quantity_ordered: 1,
+  quantity_received: 0,
+  unit: "EA",
+  stock_number: "",
+  description: "",
+  unit_price: 0,
+  total_price: 0
+});
 
 export default function PurchaseOrderForm({ purchaseOrder, suppliers, onSave, onCancel, isSaving }) {
   const [formData, setFormData] = useState({
@@ -25,15 +36,7 @@ export default function PurchaseOrderForm({ purchaseOrder, suppliers, onSave, on
     requisition_no: "",
     purpose_project: "",
     status: "draft",
-    line_items: [{
-      quantity_ordered: 1,
-      quantity_received: 0,
-      unit: "EA",
-      stock_number: "",
-      description: "",
-      unit_price: 0,
-      total_price: 0
-    }],
+    line_items: [defaultLineItem()],
     total_amount: 0,
     requested_by: "",
     certified_by: "",
@@ -45,20 +48,13 @@ export default function PurchaseOrderForm({ purchaseOrder, suppliers, onSave, on
 
   useEffect(() => {
     if (purchaseOrder) {
+      const normalizedPO = normalizePurchaseOrderRecord(purchaseOrder);
       const poData = {
-        ...purchaseOrder,
+        ...normalizedPO,
         order_date: purchaseOrder.order_date ? purchaseOrder.order_date.split('T')[0] : "",
         date_required: purchaseOrder.date_required ? purchaseOrder.date_required.split('T')[0] : "",
         received_date: purchaseOrder.received_date ? purchaseOrder.received_date.split('T')[0] : "",
-        line_items: purchaseOrder.line_items?.length ? purchaseOrder.line_items : [{
-          quantity_ordered: 1,
-          quantity_received: 0,
-          unit: "EA",
-          stock_number: "",
-          description: "",
-          unit_price: 0,
-          total_price: 0
-        }],
+        line_items: normalizedPO.line_items?.length ? normalizedPO.line_items : [defaultLineItem()],
         category: purchaseOrder.category || "General"
       };
       
@@ -106,22 +102,28 @@ export default function PurchaseOrderForm({ purchaseOrder, suppliers, onSave, on
   };
 
   const calculateTotals = useCallback(() => {
-    const total = formData.line_items.reduce((sum, item) => sum + parseFloat(item.total_price || 0), 0);
+    const total = calculateLineItemsTotal(formData.line_items);
     setFormData(prev => ({
         ...prev,
-        total_amount: total.toFixed(2)
+        total_amount: Number(total.toFixed(2))
     }));
   }, [formData.line_items]);
 
   const handleItemChange = (index, field, value) => {
     const items = [...formData.line_items];
-    const numericValue = parseFloat(value) || 0;
+    const numericValue = toNumber(value, 0);
     items[index][field] = value;
     
-    if (field === 'quantity_ordered' || field === 'unit_price') {
-      const quantity = field === 'quantity_ordered' ? numericValue : parseFloat(items[index].quantity_ordered || 0);
-      const unitPrice = field === 'unit_price' ? numericValue : parseFloat(items[index].unit_price || 0);
-      items[index].total_price = (quantity * unitPrice).toFixed(2);
+    if (field === 'quantity_ordered' || field === 'quantity' || field === 'unit_price') {
+      const quantity = field === 'quantity_ordered' || field === 'quantity'
+        ? numericValue
+        : toNumber(items[index].quantity_ordered ?? items[index].quantity, 0);
+      const unitPrice = field === 'unit_price' ? numericValue : toNumber(items[index].unit_price, 0);
+      items[index].quantity = quantity;
+      items[index].quantity_ordered = quantity;
+      items[index].ordered_quantity = quantity;
+      items[index].unit_price = unitPrice;
+      items[index].total_price = Number((quantity * unitPrice).toFixed(2));
     }
     
     setFormData((prev) => ({ ...prev, line_items: items }));
@@ -134,15 +136,7 @@ export default function PurchaseOrderForm({ purchaseOrder, suppliers, onSave, on
   const addItem = () => {
     setFormData((prev) => ({
       ...prev,
-      line_items: [...prev.line_items, {
-        quantity_ordered: 1,
-        quantity_received: 0,
-        unit: "EA",
-        stock_number: "",
-        description: "",
-        unit_price: 0,
-        total_price: 0
-      }]
+      line_items: [...prev.line_items, defaultLineItem()]
     }));
   };
 
@@ -158,7 +152,8 @@ export default function PurchaseOrderForm({ purchaseOrder, suppliers, onSave, on
     }
     
     // **FIX:** Ensure supplier_name and supplier_address are always included
-    const dataToSave = { ...formData };
+    const normalized = normalizePurchaseOrderRecord(formData);
+    const dataToSave = { ...formData, ...normalized };
     if (dataToSave.supplier_id && !dataToSave.supplier_name && suppliers) {
       const supplier = suppliers.find(s => s.id === dataToSave.supplier_id);
       if (supplier) {

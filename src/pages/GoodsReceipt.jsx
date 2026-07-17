@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import GoodsReceiptForm from "../components/goods_receipt/GoodsReceiptForm";
 import GoodsReceiptDetailModal from "../components/goods_receipt/GoodsReceiptDetailModal";
 import Pagination from "../components/shared/Pagination";
+import { getOrderedQuantity, normalizeGoodsReceiptLineItem } from "@/lib/procurementData";
 
 const statusConfig = {
   partial: { label: "Partial", color: "bg-yellow-100 text-yellow-800", icon: AlertTriangle },
@@ -70,9 +71,10 @@ export default function GoodsReceiptPage() {
                 purchase_order_id: po.id,
                 supplier_id: po.supplier_id,
                 line_items: po.line_items.map(item => ({
+                    ...normalizeGoodsReceiptLineItem(item),
                     description: item.description,
-                    ordered_quantity: item.quantity,
-                    received_quantity: item.quantity, // Default to receiving all
+                    ordered_quantity: getOrderedQuantity(item),
+                    received_quantity: getOrderedQuantity(item), // Default to receiving all
                     item_id: item.item_id,
                     item_type: item.item_type
                 }))
@@ -172,7 +174,7 @@ export default function GoodsReceiptPage() {
 
         let isComplete = true;
         for(const line of po.line_items) {
-            if ((totalReceived[line.description] || 0) < line.quantity) {
+            if ((totalReceived[line.description] || 0) < getOrderedQuantity(line)) {
                 isComplete = false;
                 break;
             }

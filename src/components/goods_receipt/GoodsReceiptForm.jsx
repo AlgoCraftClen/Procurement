@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2 } from "lucide-react";
+import { getOrderedQuantity, normalizeGoodsReceiptLineItem } from "@/lib/procurementData";
 
 export default function GoodsReceiptForm({ receipt, suppliers, purchaseOrders, onSubmit, onCancel }) {
   const [formData, setFormData] = useState({
@@ -24,7 +25,7 @@ export default function GoodsReceiptForm({ receipt, suppliers, purchaseOrders, o
       setFormData({
         ...receipt,
         received_date: receipt.received_date ? receipt.received_date.split('T')[0] : "",
-        line_items: receipt.line_items?.length ? receipt.line_items : [{ description: "", ordered_quantity: 0, received_quantity: 0, condition: "good", notes: "" }]
+        line_items: receipt.line_items?.length ? receipt.line_items.map(normalizeGoodsReceiptLineItem) : [{ description: "", ordered_quantity: 0, received_quantity: 0, condition: "good", notes: "" }]
       });
     }
   }, [receipt]);
@@ -45,11 +46,15 @@ export default function GoodsReceiptForm({ receipt, suppliers, purchaseOrders, o
           ...prev, 
           supplier_id: po.supplier_id,
           line_items: po.line_items?.map(item => ({
+            ...normalizeGoodsReceiptLineItem(item),
             description: item.description,
-            ordered_quantity: item.quantity || 0,
+            ordered_quantity: getOrderedQuantity(item),
             received_quantity: 0,
             condition: "good",
-            notes: ""
+            notes: "",
+            item_id: item.item_id,
+            item_type: item.item_type,
+            unit_of_measure: item.unit_of_measure || item.unit
           })) || prev.line_items
         }));
       }
