@@ -40,18 +40,24 @@ export async function CreateFileSignedUrl({ path, expiresIn = 3600 } = {}) {
 
 export const UploadPrivateFile = UploadFile;
 
-export async function InvokeLLM({ response_json_schema } = {}) {
-  if (response_json_schema?.properties?.executive_summary) {
-    return {
-      executive_summary: "Supabase migration is active. AI report generation can be added later with a Supabase Edge Function.",
-      key_insights: ["Live procurement data is available through the app records table."],
-      recommendations: ["Add a Supabase Edge Function for AI-assisted reporting after the core workflow is stable."],
-      action_items: ["Confirm Supabase credentials in the deployed hosting environment."],
-      risk_alerts: [],
-      charts: []
-    };
+export async function InvokeLLM(payload = {}) {
+  if (!isSupabaseConfigured) {
+    throw new Error("AI extraction requires Supabase to be configured.");
   }
-  throw new Error("Smart document extraction is not configured yet. Add a Supabase Edge Function or document parsing service before using automatic upload extraction.");
+
+  const { data, error } = await supabase.functions.invoke("procurement-ai", {
+    body: payload
+  });
+
+  if (error) {
+    throw new Error(error.message || "AI extraction request failed.");
+  }
+
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+
+  return data?.result ?? data;
 }
 
 export async function SendEmail() {

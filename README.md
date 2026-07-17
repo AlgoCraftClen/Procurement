@@ -67,3 +67,19 @@ npm run build
 3. Optional: copy `.env.example` to `.env` and fill in a different project URL
    and publishable key.
 4. Optional: add the same environment variables to the hosting service.
+
+## Smart document extraction
+
+Smart extraction is handled by the Supabase Edge Function in
+`supabase/functions/procurement-ai`.
+
+Required Supabase function secrets:
+
+```text
+OPENAI_API_KEY
+OPENAI_MODEL=gpt-4o-mini
+```
+
+The frontend calls the function through `supabase.functions.invoke`. Uploaded
+documents are saved to Supabase Storage first, then the function reads the
+document URL and returns structured procurement data for review.

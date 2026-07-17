@@ -6,7 +6,7 @@ Last updated: 2026-07-17
 
 - Repository: `AlgoCraftClen/Procurement`
 - Branch: `main`
-- Latest implementation commit before this handoff: `a5c6e61 Improve procurement app UX and upload fallback`
+- Latest implementation commit before this handoff: `2bff98f Add next session handoff`
 - Local app URL used for validation: `http://127.0.0.1:5173`
 - Production domain: `tobolarprocurement.com`
 
@@ -22,11 +22,20 @@ Last updated: 2026-07-17
 - Improved inventory tab hit areas and active states.
 - Updated Upload Documents to save the source file first and fall back to manual record creation when automatic extraction is unavailable.
 - Tested the upload fallback with a temporary PDF, then removed the test file from Supabase Storage.
+- Added the `procurement-ai` Supabase Edge Function for smart document extraction through OpenAI.
+- Reconnected the frontend AI integration to `supabase.functions.invoke("procurement-ai")`.
+- Deployed the `procurement-ai` Edge Function to Supabase project `uvhmgijhgqmjgavhdqdk`; version 1 is active with JWT verification enabled.
+- Set Supabase Edge Function secrets `OPENAI_API_KEY` and `OPENAI_MODEL`.
+- Live-tested the deployed function. It reaches OpenAI, but OpenAI returns `insufficient_quota`.
+- Added route-level lazy loading and Vite vendor chunk splitting to remove the large bundle warning.
+- Updated browser baseline metadata packages to remove stale browser data warnings.
+- Cleaned Fast Refresh lint warnings by moving reusable UI variant helpers into separate modules and removing unused helper exports.
 
 ## Verification Already Run
 
 - `npm.cmd run build` passed.
-- `npm.cmd run lint` passed with warnings only.
+- `npm.cmd run lint` passed with no warnings.
+- `npm.cmd run build` passed with no bundle-size or stale-browser-data warnings.
 - Visual audit covered:
   - Invoice detail and edit modal spacing
   - Purchase order create form
@@ -35,23 +44,24 @@ Last updated: 2026-07-17
   - Inventory tabs and issued-item actions
   - Header page finder
 
-## Deferred Work
+## Remaining Work
 
-1. Smart document extraction is still not connected.
-   - Current behavior is honest and usable: the app saves the document, then offers manual creation links.
-   - Next likely step: build a Supabase Edge Function or another document parsing service for classification and extraction.
+1. Resolve OpenAI API quota/billing for project `proj_QOY56oPqYVCt7ybPWXBVQ1jb`.
+   - The deployed function now has the required Supabase secrets.
+   - Live test response: OpenAI returned `insufficient_quota`.
+   - After credits/billing are available, rerun a live extraction test.
 
-2. Build still warns about bundle size and stale browser baseline data.
-   - Build succeeds.
-   - Next likely step: code-split route/page bundles and refresh Browserslist/baseline data.
+2. Verify smart extraction end-to-end after OpenAI quota is resolved.
+   - Upload a sample invoice or purchase order.
+   - Confirm the function returns structured data instead of the quota error or manual fallback message.
 
-3. Lint still has pre-existing Fast Refresh warnings in shared UI files.
-   - Lint succeeds.
-   - Next likely step: move shared exported constants/helpers out of component files where ESLint reports `react-refresh/only-export-components`.
+3. Review dependency vulnerabilities reported by npm.
+   - `npm update` reported 17 vulnerabilities after refreshing browser metadata.
+   - Avoid `npm audit fix --force` until there is time to regression-test dependency changes.
 
 ## Suggested Next Session Order
 
-1. Decide how smart document extraction should work: Supabase Edge Function, external OCR/document AI, or manual-only for now.
-2. If using Supabase Edge Function, add the function, environment variables, and a private server-side parser call.
-3. Add route-level code splitting to reduce the large Vite bundle warning.
-4. Clean up Fast Refresh warnings after functional work is stable.
+1. Fix OpenAI project quota/billing.
+2. Test Upload Documents with a real sample file.
+3. If extraction quality is weak, tune `supabase/functions/procurement-ai/index.ts` prompts and schemas.
+4. Review npm vulnerabilities separately from the extraction work.
