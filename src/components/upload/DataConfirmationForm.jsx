@@ -33,6 +33,12 @@ const formatCurrency = (amount) => {
 const getDepartmentName = (department) =>
   department?.name || department?.department_name || department?.title || department?.code || "Unnamed department";
 
+const getSupplierName = (supplier) =>
+  supplier?.company_name || supplier?.name || supplier?.supplier_name || "Unnamed supplier";
+
+const getSupplierAddress = (supplier) =>
+  supplier?.address || supplier?.billing_address || supplier?.supplier_address || "";
+
 const getInventoryName = (type, item) => {
   if (!item) return "";
   if (type === "raw_material") return item.material_name || item.item_name || item.name || item.sku || "Unnamed raw material";
@@ -127,9 +133,12 @@ export default function DataConfirmationForm({
   const [amountMismatchWarning, setAmountMismatchWarning] = useState(null);
 
   const supplierForCheck = useMemo(() => {
+    if (formData.supplier_id && suppliers.length) {
+      return suppliers.find((s) => s.id === formData.supplier_id) || null;
+    }
     if (!formData.supplier_name || !suppliers.length) return null;
     return suppliers.find((s) => s.company_name?.toLowerCase() === formData.supplier_name?.toLowerCase());
-  }, [suppliers, formData.supplier_name]);
+  }, [suppliers, formData.supplier_id, formData.supplier_name]);
 
   const { isChecking: isCheckingDuplicate, isDuplicate } = useDuplicateCheck({
     entity: Invoice,
@@ -219,6 +228,21 @@ export default function DataConfirmationForm({
 
   const handleInputChange = (key, value) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleSupplierSelect = (supplierId) => {
+    if (supplierId === "manual") {
+      setFormData((prev) => ({ ...prev, supplier_id: "" }));
+      return;
+    }
+
+    const supplier = suppliers.find((entry) => entry.id === supplierId);
+    setFormData((prev) => ({
+      ...prev,
+      supplier_id: supplierId,
+      supplier_name: getSupplierName(supplier),
+      supplier_address: getSupplierAddress(supplier),
+    }));
   };
 
   const handleItemChange = (index, field, value) => {
@@ -357,7 +381,12 @@ export default function DataConfirmationForm({
   };
 
   const renderField = (key, value) => {
-    if (key === "line_items" || (typeof value === "object" && value !== null && !Array.isArray(value)) || key === "purchase_order_id") {
+    if (
+      key === "line_items" ||
+      key === "supplier_id" ||
+      (typeof value === "object" && value !== null && !Array.isArray(value)) ||
+      key === "purchase_order_id"
+    ) {
       return null;
     }
 
@@ -419,6 +448,29 @@ export default function DataConfirmationForm({
         {key === "invoice_number" && isCheckingDuplicate && (
           <Loader2 className="absolute right-2 top-2.5 h-4 w-4 animate-spin text-slate-500" />
         )}
+      </div>
+    );
+  };
+
+  const renderSupplierPicker = () => {
+    if (!["purchase_order", "invoice", "goods_receipt"].includes(documentType)) return null;
+
+    return (
+      <div className="grid w-full items-center gap-1.5">
+        <Label htmlFor="supplier_id">Supplier Link</Label>
+        <Select value={formData.supplier_id || "manual"} onValueChange={handleSupplierSelect}>
+          <SelectTrigger id="supplier_id">
+            <SelectValue placeholder="Select supplier or enter manually..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="manual">Manual supplier entry</SelectItem>
+            {suppliers.map((supplier) => (
+              <SelectItem key={supplier.id} value={supplier.id}>
+                {getSupplierName(supplier)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
     );
   };
@@ -678,6 +730,8 @@ export default function DataConfirmationForm({
             </TabsList>
 
             <TabsContent value="document" className="space-y-6">
+              {renderSupplierPicker()}
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {Object.entries(formData).map(([key, value]) => renderField(key, value))}
               </div>

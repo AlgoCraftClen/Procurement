@@ -18,7 +18,6 @@ import DataConfirmationForm from "../components/upload/DataConfirmationForm";
 import SupplierDecisionModal from "../components/upload/SupplierDecisionModal";
 import { Upload, FileText, AlertCircle, Check, Loader2, Wand2, FileQuestion, FileImage, FileSpreadsheet, ExternalLink } from "lucide-react";
 import { createPageUrl } from "@/utils";
-import { Link } from "react-router-dom";
 import { normalizeLineItemsForDocument, toNumber } from "@/lib/procurementData";
 
 // Enhanced utility function for robust supplier name comparison
@@ -140,6 +139,102 @@ const ALLOWED_MIME_TYPES = [
 ];
 
 const ACCEPTED_FILE_EXTENSIONS = ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg";
+
+const isExtractionUnavailableError = (error) => {
+  const message = String(error?.message || "").toLowerCase();
+  const code = String(error?.code || error?.details?.code || "").toLowerCase();
+  return (
+    error?.status === 429 ||
+    code === "insufficient_quota" ||
+    code === "rate_limit_exceeded" ||
+    message.includes("quota") ||
+    message.includes("billing") ||
+    message.includes("rate limit") ||
+    message.includes("openai_api_key") ||
+    message.includes("smart document extraction is not configured")
+  );
+};
+
+const getExtractionUnavailableMessage = (error) => {
+  const message = error?.message || "Smart document extraction is not available right now.";
+  if (String(error?.code || error?.details?.code || "").toLowerCase() === "insufficient_quota") {
+    return "Automatic extraction is paused because the connected OpenAI account has exceeded its current quota. The source document was saved, and you can continue with manual verification below.";
+  }
+  return `${message} The source document was saved, and you can continue with manual verification below.`;
+};
+
+const createManualInitialData = (type) => {
+  const today = new Date().toISOString().split("T")[0];
+
+  if (type === "purchase_order") {
+    return {
+      po_number: "",
+      supplier_id: "",
+      supplier_name: "",
+      supplier_address: "",
+      order_date: today,
+      date_required: "",
+      payment_terms: "",
+      requisition_no: "",
+      purpose_project: "",
+      status: "draft",
+      line_items: normalizeLineItemsForDocument(type, [{
+        quantity_ordered: 1,
+        quantity_received: 0,
+        unit: "EA",
+        stock_number: "",
+        description: "",
+        unit_price: 0,
+        total_price: 0
+      }]),
+      total_amount: 0,
+      notes: ""
+    };
+  }
+
+  if (type === "invoice") {
+    return {
+      invoice_number: "",
+      purchase_order_number: "",
+      supplier_id: "",
+      supplier_name: "",
+      supplier_address: "",
+      invoice_date: today,
+      due_date: "",
+      payment_terms: "",
+      status: "pending",
+      line_items: normalizeLineItemsForDocument(type, [{
+        description: "",
+        quantity: 1,
+        unit_price: 0,
+        total_price: 0
+      }]),
+      subtotal: 0,
+      tax_amount: 0,
+      total_amount: 0
+    };
+  }
+
+  return {
+    receipt_number: "",
+    purchase_order_number: "",
+    supplier_id: "",
+    supplier_name: "",
+    supplier_address: "",
+    received_date: today,
+    received_by: "",
+    delivery_note: "",
+    status: "received",
+    line_items: normalizeLineItemsForDocument(type, [{
+      description: "",
+      ordered_quantity: 1,
+      received_quantity: 1,
+      unit: "EA",
+      condition: "good",
+      notes: ""
+    }])
+  };
+};
 
 export default function SmartUploadPage() {
   const [file, setFile] = useState(null);
@@ -483,8 +578,8 @@ Respond with:
 
     } catch (e) {
       console.error("[Upload] ❌ Classification error:", e);
-      if (e.message && e.message.includes('Smart document extraction is not configured')) {
-        setError(null);
+      if (isExtractionUnavailableError(e)) {
+        setError(getExtractionUnavailableMessage(e));
         setStep('manual_review');
         return;
       }
@@ -649,8 +744,8 @@ Respond with:
     } catch (e) {
       console.error("[Upload] ❌ Extraction error:", e);
       
-      if (e.message && e.message.includes('Smart document extraction is not configured')) {
-        setError(null);
+      if (isExtractionUnavailableError(e)) {
+        setError(getExtractionUnavailableMessage(e));
         setStep('manual_review');
         return;
       }
@@ -686,6 +781,16 @@ Respond with:
   const handleSupplierSkip = () => {
     setResolvedSupplierId(null);
     setShowSupplierModal(false);
+  };
+
+  const startManualVerification = (type) => {
+    setDocumentType(type);
+    setExtractedData(createManualInitialData(type));
+    setResolvedSupplierId(null);
+    setPendingSupplierName('');
+    setShowSupplierModal(false);
+    setError(null);
+    setStep('confirming');
   };
 
   const getInventoryEntity = (itemType) => {
@@ -863,11 +968,7 @@ Respond with:
     setError(null);
     
     try {
-        if (!resolvedSupplierId && ['purchase_order', 'invoice', 'goods_receipt'].includes(documentType)) {
-          setError(`A supplier must be selected or created to save this ${documentType.replace('_', ' ')}. Please try the upload again.`);
-          setStep('confirming');
-          return;
-        }
+        const supplierId = resolvedSupplierId || finalData.supplier_id || null;
 
         const assignments = finalData.assignments || [];
         const documentData = { ...finalData };
@@ -877,12 +978,12 @@ Respond with:
 
         const dataToCreate = {
             ...documentData,
-            supplier_id: resolvedSupplierId,
+            supplier_id: supplierId,
             purchase_order_id: poId,
             file_url: fileUrl,
         };
 
-        if (documentType === 'invoice') {
+        if (documentType === 'invoice' && supplierId) {
             delete dataToCreate.supplier_name;
             delete dataToCreate.supplier_address;
         }
@@ -1039,10 +1140,10 @@ Respond with:
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-slate-900">
           <FileQuestion className="h-5 w-5 text-blue-600" />
-          Document saved. Create the record manually.
+          Document saved. Continue with manual verification.
         </CardTitle>
         <CardDescription>
-          Automatic extraction is not connected yet, but the uploaded source document is available for reference.
+          Automatic extraction is unavailable right now, but the uploaded source document is available for review.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -1063,14 +1164,14 @@ Respond with:
           )}
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <Button asChild>
-            <Link to={createPageUrl("PurchaseOrders")}>Create Purchase Order</Link>
+          <Button onClick={() => startManualVerification("purchase_order")}>
+            Verify as Purchase Order
           </Button>
-          <Button variant="outline" asChild>
-            <Link to={createPageUrl("Invoices")}>Create Invoice</Link>
+          <Button variant="outline" onClick={() => startManualVerification("invoice")}>
+            Verify as Invoice
           </Button>
-          <Button variant="outline" asChild>
-            <Link to={createPageUrl("GoodsReceipt")}>Create Goods Receipt</Link>
+          <Button variant="outline" onClick={() => startManualVerification("goods_receipt")}>
+            Verify as Goods Receipt
           </Button>
         </div>
         <div className="flex justify-end">

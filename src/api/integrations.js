@@ -50,7 +50,25 @@ export async function InvokeLLM(payload = {}) {
   });
 
   if (error) {
-    throw new Error(error.message || "AI extraction request failed.");
+    let functionPayload = null;
+    if (error.context) {
+      try {
+        functionPayload = await error.context.json();
+      } catch {
+        functionPayload = null;
+      }
+    }
+
+    const message =
+      functionPayload?.error ||
+      functionPayload?.message ||
+      error.message ||
+      "AI extraction request failed.";
+    const enhancedError = new Error(message);
+    enhancedError.status = error.context?.status || error.status || null;
+    enhancedError.code = functionPayload?.details?.code || functionPayload?.code || null;
+    enhancedError.details = functionPayload?.details || functionPayload || null;
+    throw enhancedError;
   }
 
   if (data?.error) {
