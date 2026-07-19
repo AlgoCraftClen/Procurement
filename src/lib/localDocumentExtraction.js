@@ -16,6 +16,29 @@ const cleanLine = (line = "") => line.replace(/\s+/g, " ").trim();
 
 const parseMoney = (value) => toNumber(String(value || "").replace(/[^\d.-]/g, ""), 0);
 const getLines = (text) => normalizeText(text).split("\n").map(cleanLine).filter(Boolean);
+const hasDigits = (value = "") => /\d/.test(String(value));
+
+const fieldNoisePattern = /\b(above order|this order|must|appear|papers|packages|relative|goods listed below|unit price|requisition no|purchase order|date required|ship via|routing|ordered|received|stock number|description|certified|requested|approved)\b/i;
+const companyHeaderPattern = /\b(tobolar|copra processing|majuro|marshall islands|p\.?\s*o\.?\s*box)\b/i;
+
+const cleanExtractedValue = (value = "") => cleanLine(String(value)
+  .replace(/[|_]+/g, " ")
+  .replace(/\s{2,}/g, " ")
+  .replace(/^[\s:;,-]+|[\s:;,-]+$/g, ""));
+
+const isNoisyFieldValue = (value = "") => {
+  const cleaned = cleanExtractedValue(value);
+  return !cleaned || fieldNoisePattern.test(cleaned) || companyHeaderPattern.test(cleaned);
+};
+
+const isQuantityUnitOnly = (value = "") => /^\s*\d+(?:\.\d+)?\s*(EA|EACH|BOX|CASE|SET|PCS?|UNITS?|BAGS?|LBS?|LB)\s*$/i.test(value);
+const isLineItemNoise = (value = "") => {
+  const cleaned = cleanExtractedValue(value);
+  return !cleaned
+    || fieldNoisePattern.test(cleaned)
+    || companyHeaderPattern.test(cleaned)
+    || /^(for|total|subtotal|tax|terms|date|ship|routing|ordered|received|stock|description)\b/i.test(cleaned);
+};
 
 const normalizeDate = (value) => {
   if (!value) return "";
@@ -25,11 +48,15 @@ const normalizeDate = (value) => {
   if (numeric) {
     const [, month, day, year] = numeric;
     const fullYear = year.length === 2 ? `20${year}` : year;
+    const yearNumber = Number(fullYear);
+    if (yearNumber < 2000 || yearNumber > 2100) return "";
     return `${fullYear.padStart(4, "0")}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
   }
 
   const parsed = new Date(input);
   if (Number.isNaN(parsed.getTime())) return "";
+  const parsedYear = parsed.getFullYear();
+  if (parsedYear < 2000 || parsedYear > 2100) return "";
   return parsed.toISOString().split("T")[0];
 };
 
@@ -82,22 +109,25 @@ const findSupplierName = (text, suppliers = [], documentType = "") => {
   const lines = getLines(text);
 
   if (documentType === "purchase_order") {
-    const toLine = lines.find((line) => /\bto\s*[:_-]/i.test(line) && !/ship\s*to/i.test(line));
+    const toLine = lines.find((line) => /^to\b/i.test(line) && !/ship\s*to/i.test(line));
     if (toLine) {
-      const value = cleanLine(toLine.replace(/^.*?\bto\s*[:_-]\s*/i, "").replace(/\bship\s*to\b.*$/i, ""));
-      if (value && value.length <= 80 && !/\d{3,}/.test(value)) return value;
+      const value = cleanExtractedValue(toLine.replace(/^to\b\s*[:_-]?\s*/i, "").replace(/\bship\s*to\b.*$/i, ""));
+      if (value && value.length <= 80 && !/\d{3,}/.test(value) && !isNoisyFieldValue(value)) return value;
     }
 
     const toIndex = lines.findIndex((line) => /^to\b/i.test(line) && !/ship\s*to/i.test(line));
     if (toIndex >= 0) {
       const candidate = lines.slice(toIndex + 1, toIndex + 4)
-        .find((line) => /[a-z]/i.test(line) && !/\b(po|ship|date|majuro|marshall|islands|box)\b/i.test(line));
+        .map(cleanExtractedValue)
+        .find((line) => /[a-z]/i.test(line) && !/\b(po|ship|date)\b/i.test(line) && !isNoisyFieldValue(line));
       if (candidate) return candidate;
     }
+
+    return "";
   }
 
-  const labeled = matchAfterLabel(text, ["vendor", "supplier", "from", "remit to", "bill from", "to"]);
-  if (labeled && labeled.length <= 80 && !/\d{2,}/.test(labeled)) return labeled;
+  const labeled = cleanExtractedValue(matchAfterLabel(text, ["vendor", "supplier", "from", "remit to", "bill from", "to"]));
+  if (labeled && labeled.length <= 80 && !/\d{2,}/.test(labeled) && !isNoisyFieldValue(labeled)) return labeled;
 
   return lines.find((line) =>
     line.length > 2 &&
@@ -108,18 +138,59 @@ const findSupplierName = (text, suppliers = [], documentType = "") => {
 };
 
 const findPurchaseOrderNumber = (text) => {
+  const cleanPoCandidate = (value = "") => cleanExtractedValue(value).replace(/[^A-Z0-9-]/gi, "");
+  const isValidPoCandidate = (value = "") => {
+    const cleaned = cleanPoCandidate(value);
+    return cleaned.length >= 3
+      && cleaned.length <= 12
+      && hasDigits(cleaned)
+      && !/^[A-Z]+$/i.test(cleaned)
+      && !/^(MUST|ORDER|THIS|ABOVE|PAPERS|PACKAGES|RELATIVE|NO|N0)$/i.test(cleaned);
+  };
+
   const patterns = [
-    /\b(?:po|p\.o\.|purchase\s*order|order)\s*(?:number|no|#)?\s*[:#-]?\s*([A-Z0-9-]{3,})\b/i,
-    /\b(?:no|n0)\s*[:#-]?\s*([A-Z0-9-]{3,})\b/i,
-    /\bpo\s*#?\s*([A-Z0-9-]{3,})\b/i,
+    /\bP\.?\s*O\.?\s*#\s*([0-9][A-Z0-9-]{2,})\b/gi,
+    /\bPO\s*#?\s*([0-9][A-Z0-9-]{2,})\b/gi,
+    /\b(?:No|N0)\.?\s*[:#]?\s*([0-9][A-Z0-9-]{2,})\b/gi,
+    /\bORDER\s+NO\.?\s*[:#]?\s*([0-9][A-Z0-9-]{2,})\b/gi,
   ];
 
   for (const pattern of patterns) {
-    const match = String(text).match(pattern);
-    if (match?.[1] && !/^purchase$/i.test(match[1])) return match[1].replace(/[^\w-]/g, "");
+    const matches = [...String(text).matchAll(pattern)]
+      .map((match) => cleanPoCandidate(match[1]))
+      .filter(isValidPoCandidate);
+    if (matches.length) return matches[0];
   }
 
   return "";
+};
+
+const findPurchaseOrderTerms = (text) => {
+  const value = cleanExtractedValue(matchAfterLabel(text, ["payment terms", "terms"]));
+  if (!value || isNoisyFieldValue(value)) return "";
+  if (!/\b(net|due|cod|cash|credit|prepaid|upon|days?|eom|\d{1,3})\b/i.test(value)) return "";
+  return value.slice(0, 80);
+};
+
+const findPurchaseOrderRequisitionNo = (text) => {
+  const value = cleanExtractedValue(matchAfterLabel(text, ["requisition no", "requisition #", "req no", "req #"]));
+  if (!value || isNoisyFieldValue(value)) return "";
+  if (/\d{1,2}[/-]\d{1,2}[/-]\d{2,4}/.test(value) || /[|_]/.test(value)) return "";
+  if (!/^[A-Z0-9-]{2,30}$/i.test(value)) return "";
+  return value;
+};
+
+const findPurchaseOrderPurpose = (text) => {
+  const lines = getLines(text);
+  const forLine = lines.find((line) => /\bfor\s*[:_-]/i.test(line) && !fieldNoisePattern.test(line));
+  if (forLine) {
+    const value = cleanExtractedValue(forLine.replace(/^.*?\bfor\s*[:_-]\s*/i, ""));
+    if (value && value.length <= 100 && !fieldNoisePattern.test(value)) return value;
+  }
+
+  const value = cleanExtractedValue(matchAfterLabel(text, ["purpose", "project"]));
+  if (!value || isNoisyFieldValue(value)) return "";
+  return value.slice(0, 100);
 };
 
 const scoreDocumentType = (text) => {
@@ -217,15 +288,20 @@ const extractLineItems = (text, documentType) => {
   return normalizeLineItemsForDocument(documentType, items.slice(0, 50));
 };
 
+const cleanLineItemDescription = (value = "") => cleanExtractedValue(value)
+  .replace(/^\d+(?:\.\d+)?\s*(EA|EACH|BOX|CASE|SET|PCS?|UNITS?|BAGS?|LBS?|LB)\b\s*/i, "")
+  .replace(/\s+\$?\d+(?:\.\d{2})?\s*$/g, "")
+  .trim();
+
 const findLikelyDescription = (lines, amountLineIndex) => {
-  const ignored = /^(total|subtotal|tax|date|terms|routing|ship|ordered|received|unit|stock|description|for:|certified|requested|approved|purchase order|copra|p\.o\.|box)\b/i;
   const candidates = [];
 
   for (let index = Math.max(0, amountLineIndex - 5); index <= amountLineIndex; index += 1) {
-    const line = lines[index] || "";
-    if (!line || ignored.test(line)) continue;
+    const line = cleanLineItemDescription(lines[index] || "");
+    if (!line || isLineItemNoise(line) || isQuantityUnitOnly(line)) continue;
     if (!/[a-z]/i.test(line)) continue;
     if (/^\$?\s*[\d,]+(?:\.\d{2})?$/.test(line)) continue;
+    if (/\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b/.test(line)) continue;
     candidates.push(line);
   }
 
@@ -236,12 +312,14 @@ const findLikelyDescription = (lines, amountLineIndex) => {
 
 const findNearbyQuantity = (lines, amountLineIndex) => {
   for (let index = Math.max(0, amountLineIndex - 5); index <= amountLineIndex; index += 1) {
+    if (isLineItemNoise(lines[index])) continue;
     const match = (lines[index] || "").match(/\b(\d+(?:\.\d+)?)\s*(EA|EACH|BOX|CASE|SET|PCS?|UNITS?|BAGS?|LBS?|LB)\b/i);
     if (match) return { quantity: toNumber(match[1], 1), unit: match[2].toUpperCase() };
   }
 
   for (let index = Math.max(0, amountLineIndex - 3); index <= amountLineIndex; index += 1) {
     const line = lines[index] || "";
+    if (isLineItemNoise(line)) continue;
     if (/\d{1,2}[/-]\d{1,2}[/-]\d{2,4}/.test(line)) continue;
     const match = line.match(/^\s*(\d+(?:\.\d+)?)\b/);
     if (match) return { quantity: toNumber(match[1], 1), unit: "EA" };
@@ -256,7 +334,7 @@ const extractPurchaseOrderLineItems = (text) => {
 
   lines.forEach((line, index) => {
     if (!/(\$|\d+\.\d{2})/.test(line)) return;
-    if (/^\s*(subtotal|grand total|total|amount due|balance due)\b/i.test(line)) return;
+    if (isLineItemNoise(line) || /^\s*(subtotal|grand total|total|amount due|balance due)\b/i.test(line)) return;
 
     const amounts = [...line.matchAll(/\$?\s*([\d,]+\.\d{2})/g)].map((match) => parseMoney(match[1])).filter((value) => value > 0);
     if (!amounts.length) return;
@@ -266,9 +344,10 @@ const extractPurchaseOrderLineItems = (text) => {
     const nearbyQuantity = findNearbyQuantity(lines, index);
     const quantity = nearbyQuantity.quantity || (unitPrice > 0 ? Number((totalPrice / unitPrice).toFixed(2)) : 1);
     const unit = nearbyQuantity.unit || "EA";
-    const description = findLikelyDescription(lines, index);
+    const description = cleanLineItemDescription(findLikelyDescription(lines, index));
 
-    if (!description || totalPrice <= 0) return;
+    if (!description || isLineItemNoise(description) || totalPrice <= 0) return;
+    if (!unitPrice && totalPrice > 0 && /\b(total|for|certified|requested|approved)\b/i.test(lines.slice(Math.max(0, index - 2), index + 1).join(" "))) return;
 
     items.push({
       description,
@@ -378,9 +457,9 @@ const createDocumentData = (documentType, text, suppliers = []) => {
       supplier_address: "",
       order_date: findDate(text, ["order date", "date"]) || dates[0] || today,
       date_required: findDate(text, ["date required", "required by", "delivery date", "expected delivery"]) || dates[1] || dates[0] || "",
-      payment_terms: matchAfterLabel(text, ["payment terms", "terms"]),
-      requisition_no: matchAfterLabel(text, ["requisition no", "requisition #", "req no", "req #"]),
-      purpose_project: matchAfterLabel(text, ["purpose", "project", "for"]),
+      payment_terms: findPurchaseOrderTerms(text),
+      requisition_no: findPurchaseOrderRequisitionNo(text),
+      purpose_project: findPurchaseOrderPurpose(text),
       status: "draft",
       line_items: lineItems.length ? lineItems : normalizeLineItemsForDocument(documentType, [{ description: "", quantity_ordered: 1, unit_price: 0, total_price: 0 }]),
       total_amount: totalAmount || lineItems.reduce((sum, item) => sum + toNumber(item.total_price, 0), 0),
