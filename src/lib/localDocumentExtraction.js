@@ -15,6 +15,7 @@ const compact = (value = "") => String(value).toLowerCase().replace(/[^a-z0-9]/g
 const cleanLine = (line = "") => line.replace(/\s+/g, " ").trim();
 
 const parseMoney = (value) => toNumber(String(value || "").replace(/[^\d.-]/g, ""), 0);
+const getLines = (text) => normalizeText(text).split("\n").map(cleanLine).filter(Boolean);
 
 const normalizeDate = (value) => {
   if (!value) return "";
@@ -46,6 +47,13 @@ const findDate = (text, labels) => {
   return normalizeDate(matchAfterLabel(text, labels, datePattern));
 };
 
+const findAllDates = (text) => {
+  const matches = [...String(text).matchAll(/\b(?:[A-Za-z]+\s+\d{1,2},?\s+\d{4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/g)]
+    .map((match) => normalizeDate(match[0]))
+    .filter(Boolean);
+  return [...new Set(matches)];
+};
+
 const findTotal = (text, labels) => {
   for (const label of labels) {
     const pattern = new RegExp(`${label}\\s*[:#-]?\\s*\\$?\\s*([\\d,]+(?:\\.\\d{2})?)`, "gi");
@@ -67,11 +75,27 @@ const findKnownSupplier = (text, suppliers = []) => {
   });
 };
 
-const findSupplierName = (text, suppliers = []) => {
+const findSupplierName = (text, suppliers = [], documentType = "") => {
   const knownSupplier = findKnownSupplier(text, suppliers);
   if (knownSupplier) return knownSupplier.company_name || knownSupplier.name || knownSupplier.supplier_name || "";
 
-  const lines = normalizeText(text).split("\n").map(cleanLine).filter(Boolean);
+  const lines = getLines(text);
+
+  if (documentType === "purchase_order") {
+    const toLine = lines.find((line) => /\bto\s*[:_-]/i.test(line) && !/ship\s*to/i.test(line));
+    if (toLine) {
+      const value = cleanLine(toLine.replace(/^.*?\bto\s*[:_-]\s*/i, "").replace(/\bship\s*to\b.*$/i, ""));
+      if (value && value.length <= 80 && !/\d{3,}/.test(value)) return value;
+    }
+
+    const toIndex = lines.findIndex((line) => /^to\b/i.test(line) && !/ship\s*to/i.test(line));
+    if (toIndex >= 0) {
+      const candidate = lines.slice(toIndex + 1, toIndex + 4)
+        .find((line) => /[a-z]/i.test(line) && !/\b(po|ship|date|majuro|marshall|islands|box)\b/i.test(line));
+      if (candidate) return candidate;
+    }
+  }
+
   const labeled = matchAfterLabel(text, ["vendor", "supplier", "from", "remit to", "bill from", "to"]);
   if (labeled && labeled.length <= 80 && !/\d{2,}/.test(labeled)) return labeled;
 
@@ -81,6 +105,21 @@ const findSupplierName = (text, suppliers = []) => {
     !/^(invoice|purchase order|goods receipt|packing slip|delivery note|date|page)\b/i.test(line) &&
     /[a-z]/i.test(line)
   ) || "";
+};
+
+const findPurchaseOrderNumber = (text) => {
+  const patterns = [
+    /\b(?:po|p\.o\.|purchase\s*order|order)\s*(?:number|no|#)?\s*[:#-]?\s*([A-Z0-9-]{3,})\b/i,
+    /\b(?:no|n0)\s*[:#-]?\s*([A-Z0-9-]{3,})\b/i,
+    /\bpo\s*#?\s*([A-Z0-9-]{3,})\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = String(text).match(pattern);
+    if (match?.[1] && !/^purchase$/i.test(match[1])) return match[1].replace(/[^\w-]/g, "");
+  }
+
+  return "";
 };
 
 const scoreDocumentType = (text) => {
@@ -141,7 +180,7 @@ const scoreDocumentType = (text) => {
 };
 
 const extractLineItems = (text, documentType) => {
-  const lines = normalizeText(text).split("\n").map(cleanLine).filter(Boolean);
+  const lines = getLines(text);
   const items = [];
 
   for (const line of lines) {
@@ -178,24 +217,173 @@ const extractLineItems = (text, documentType) => {
   return normalizeLineItemsForDocument(documentType, items.slice(0, 50));
 };
 
+const findLikelyDescription = (lines, amountLineIndex) => {
+  const ignored = /^(total|subtotal|tax|date|terms|routing|ship|ordered|received|unit|stock|description|for:|certified|requested|approved|purchase order|copra|p\.o\.|box)\b/i;
+  const candidates = [];
+
+  for (let index = Math.max(0, amountLineIndex - 5); index <= amountLineIndex; index += 1) {
+    const line = lines[index] || "";
+    if (!line || ignored.test(line)) continue;
+    if (!/[a-z]/i.test(line)) continue;
+    if (/^\$?\s*[\d,]+(?:\.\d{2})?$/.test(line)) continue;
+    candidates.push(line);
+  }
+
+  return candidates.find((line) => /\b(rice|lb|lbs|cement|fuel|oil|parts|supply|material|water|paint|pipe|wire|tool|discount)\b/i.test(line))
+    || candidates[candidates.length - 1]
+    || "";
+};
+
+const findNearbyQuantity = (lines, amountLineIndex) => {
+  for (let index = Math.max(0, amountLineIndex - 5); index <= amountLineIndex; index += 1) {
+    const match = (lines[index] || "").match(/\b(\d+(?:\.\d+)?)\s*(EA|EACH|BOX|CASE|SET|PCS?|UNITS?|BAGS?|LBS?|LB)\b/i);
+    if (match) return { quantity: toNumber(match[1], 1), unit: match[2].toUpperCase() };
+  }
+
+  for (let index = Math.max(0, amountLineIndex - 3); index <= amountLineIndex; index += 1) {
+    const line = lines[index] || "";
+    if (/\d{1,2}[/-]\d{1,2}[/-]\d{2,4}/.test(line)) continue;
+    const match = line.match(/^\s*(\d+(?:\.\d+)?)\b/);
+    if (match) return { quantity: toNumber(match[1], 1), unit: "EA" };
+  }
+
+  return { quantity: 0, unit: "EA" };
+};
+
+const extractPurchaseOrderLineItems = (text) => {
+  const lines = getLines(text);
+  const items = [];
+
+  lines.forEach((line, index) => {
+    if (!/(\$|\d+\.\d{2})/.test(line)) return;
+    if (/^\s*(subtotal|grand total|total|amount due|balance due)\b/i.test(line)) return;
+
+    const amounts = [...line.matchAll(/\$?\s*([\d,]+\.\d{2})/g)].map((match) => parseMoney(match[1])).filter((value) => value > 0);
+    if (!amounts.length) return;
+
+    const totalPrice = amounts[amounts.length - 1];
+    const unitPrice = amounts.length > 1 ? amounts[amounts.length - 2] : 0;
+    const nearbyQuantity = findNearbyQuantity(lines, index);
+    const quantity = nearbyQuantity.quantity || (unitPrice > 0 ? Number((totalPrice / unitPrice).toFixed(2)) : 1);
+    const unit = nearbyQuantity.unit || "EA";
+    const description = findLikelyDescription(lines, index);
+
+    if (!description || totalPrice <= 0) return;
+
+    items.push({
+      description,
+      quantity,
+      quantity_ordered: quantity,
+      ordered_quantity: quantity,
+      quantity_received: 0,
+      received_quantity: 0,
+      unit,
+      unit_of_measure: unit,
+      stock_number: "",
+      unit_price: unitPrice || (quantity ? Number((totalPrice / quantity).toFixed(2)) : 0),
+      total_price: totalPrice,
+    });
+  });
+
+  if (!items.length) return [];
+
+  const unique = [];
+  const seen = new Set();
+  items.forEach((item) => {
+    const key = `${compact(item.description)}-${item.total_price}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(item);
+    }
+  });
+
+  return normalizeLineItemsForDocument("purchase_order", unique.slice(0, 50));
+};
+
+const loadImageElement = (source) => new Promise((resolve, reject) => {
+  const image = new Image();
+  let objectUrl = "";
+
+  image.onload = () => {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    resolve(image);
+  };
+  image.onerror = () => {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    reject(new Error("Could not load image for OCR."));
+  };
+
+  if (source instanceof Blob) {
+    objectUrl = URL.createObjectURL(source);
+    image.src = objectUrl;
+  } else {
+    image.crossOrigin = "anonymous";
+    image.src = source;
+  }
+});
+
+const canvasFromSource = async (source) => {
+  if (typeof HTMLCanvasElement !== "undefined" && source instanceof HTMLCanvasElement) return source;
+  const image = await loadImageElement(source);
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth || image.width;
+  canvas.height = image.naturalHeight || image.height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(image, 0, 0);
+  return canvas;
+};
+
+const preprocessCanvasForOcr = (sourceCanvas) => {
+  const maxWidth = 2600;
+  const scale = Math.max(1, Math.min(3, maxWidth / Math.max(1, sourceCanvas.width)));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(sourceCanvas.width * scale);
+  canvas.height = Math.round(sourceCanvas.height * scale);
+
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(sourceCanvas, 0, 0, canvas.width, canvas.height);
+
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  const { data } = imageData;
+  for (let index = 0; index < data.length; index += 4) {
+    const luminance = 0.299 * data[index] + 0.587 * data[index + 1] + 0.114 * data[index + 2];
+    const enhanced = Math.max(0, Math.min(255, (luminance - 150) * 2.2 + 165));
+    data[index] = enhanced;
+    data[index + 1] = enhanced;
+    data[index + 2] = enhanced;
+    data[index + 3] = 255;
+  }
+  context.putImageData(imageData, 0, 0);
+
+  return canvas;
+};
+
 const createDocumentData = (documentType, text, suppliers = []) => {
-  const supplierName = findSupplierName(text, suppliers);
-  const lineItems = extractLineItems(text, documentType);
+  const supplierName = findSupplierName(text, suppliers, documentType);
+  const lineItems = documentType === "purchase_order"
+    ? extractPurchaseOrderLineItems(text)
+    : extractLineItems(text, documentType);
   const today = new Date().toISOString().split("T")[0];
+  const dates = findAllDates(text);
 
   if (documentType === "purchase_order") {
+    const totalAmount = findTotal(text, ["grand total", "total amount", "total"]);
     return {
-      po_number: matchAfterLabel(text, ["purchase order", "po number", "po #", "p\\.o\\.", "order number", "order #"]),
+      po_number: findPurchaseOrderNumber(text),
       supplier_name: supplierName,
       supplier_address: "",
-      order_date: findDate(text, ["order date", "date"]) || today,
-      date_required: findDate(text, ["date required", "required by", "delivery date", "expected delivery"]),
+      order_date: findDate(text, ["order date", "date"]) || dates[0] || today,
+      date_required: findDate(text, ["date required", "required by", "delivery date", "expected delivery"]) || dates[1] || dates[0] || "",
       payment_terms: matchAfterLabel(text, ["payment terms", "terms"]),
       requisition_no: matchAfterLabel(text, ["requisition no", "requisition #", "req no", "req #"]),
       purpose_project: matchAfterLabel(text, ["purpose", "project", "for"]),
       status: "draft",
       line_items: lineItems.length ? lineItems : normalizeLineItemsForDocument(documentType, [{ description: "", quantity_ordered: 1, unit_price: 0, total_price: 0 }]),
-      total_amount: findTotal(text, ["grand total", "total amount", "total"]),
+      total_amount: totalAmount || lineItems.reduce((sum, item) => sum + toNumber(item.total_price, 0), 0),
       notes: "Extracted locally without a paid AI API. Please verify before saving.",
     };
   }
@@ -235,7 +423,11 @@ const createDocumentData = (documentType, text, suppliers = []) => {
 };
 
 const ocrImage = async (source, onProgress) => {
-  const result = await recognize(source, "eng", {
+  const ocrSource = typeof document !== "undefined"
+    ? preprocessCanvasForOcr(await canvasFromSource(source))
+    : source;
+
+  const result = await recognize(ocrSource, "eng", {
     logger: (message) => {
       if (message.status) onProgress?.({ status: message.status, progress: message.progress || 0 });
     },
