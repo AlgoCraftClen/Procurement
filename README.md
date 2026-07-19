@@ -70,16 +70,16 @@ npm run build
 
 ## Smart document extraction
 
-Smart extraction is handled by the Supabase Edge Function in
-`supabase/functions/procurement-ai`.
+Smart extraction now runs locally in the browser with free/open-source
+libraries. Uploaded documents are saved to Supabase Storage first, then the app
+uses local OCR/parsing to prefill procurement data for user verification.
 
-Required Supabase function secrets:
+Current local extraction support:
 
-```text
-OPENAI_API_KEY
-OPENAI_MODEL=gpt-4o-mini
-```
+- Images: OCR through Tesseract.js.
+- PDFs: text-layer extraction through PDF.js, with OCR fallback for scanned
+  pages.
+- Word `.docx`: raw text extraction through Mammoth.
+- Excel/CSV: worksheet text extraction through SheetJS.
 
-The frontend calls the function through `supabase.functions.invoke`. Uploaded
-documents are saved to Supabase Storage first, then the function reads the
-document URL and returns structured procurement data for review.
+No OpenAI API key or paid AI API is required for document extraction.

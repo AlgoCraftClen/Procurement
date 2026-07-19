@@ -7,7 +7,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Calendar as CalendarIcon, Loader2, Search, Wand2, Lightbulb, AlertCircle, BarChart3 } from 'lucide-react';
 import { format } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { InvokeLLM } from '@/api/integrations';
 import SupplierTypeFilter from './SupplierTypeFilter';
 import { ProcurementDataProcessor } from './ProcurementDataProcessor';
 
@@ -70,7 +69,7 @@ export default function ProcurementAnalysis() {
       const stats = dataProcessor.getAnalysisStats(filteredInvoices);
       setAnalysisStats(stats);
 
-      // Generate AI insights
+      // Generate local insights without a paid API call
       await generateInsights(monthlySpending, supplierType, stats);
 
     } catch (error) {
@@ -84,27 +83,24 @@ export default function ProcurementAnalysis() {
   const generateInsights = async (monthlyData, selectedSupplierType, stats) => {
     try {
       const supplierTypeLabel = dataProcessor.getSupplierTypeLabel(selectedSupplierType);
-      
-      const insightResult = await InvokeLLM({
-        prompt: `Analyze the following monthly **procurement commitment** data for ${supplierTypeLabel} from ${format(startDate, 'PPP')} to ${format(endDate, 'PPP')}. 
+      const sortedBySpend = [...monthlyData].sort((a, b) => (b.spending || 0) - (a.spending || 0));
+      const highest = sortedBySpend[0] || { name: "N/A", spending: 0 };
+      const lowest = [...monthlyData].filter((entry) => (entry.spending || 0) > 0).sort((a, b) => a.spending - b.spending)[0] || { name: "N/A", spending: 0 };
+      const recent = monthlyData.slice(-3);
+      const averageRecent = recent.length
+        ? recent.reduce((sum, entry) => sum + (entry.spending || 0), 0) / recent.length
+        : 0;
 
-This data represents committed spend from ${stats.totalInvoices} invoices across ${stats.uniqueSuppliers} ${selectedSupplierType === 'all' ? 'suppliers' : supplierTypeLabel}, totaling $${stats.totalSpent.toLocaleString()}.
-
-Data: ${JSON.stringify(monthlyData)}.
-        
-Provide a concise analysis covering:
-1. A brief summary of the spending trend for ${supplierTypeLabel}.
-2. Identification of the month with the highest and lowest spending commitment.
-3. A simple spending forecast for the next 3 months based on the commitment trend.
-4. One actionable recommendation for cost management or budget planning specific to ${supplierTypeLabel}.
-${selectedSupplierType !== 'all' ? `5. Any insights about the ${supplierTypeLabel} spending pattern compared to typical procurement patterns.` : ''}
-Format the output as a markdown string.`,
-      });
-
-      setInsights(insightResult);
+      setInsights([
+        `Summary: ${supplierTypeLabel} committed spend totals $${stats.totalSpent.toLocaleString()} across ${stats.totalInvoices} invoice(s) and ${stats.uniqueSuppliers} supplier(s).`,
+        `Highest month: ${highest.name} at $${Number(highest.spending || 0).toLocaleString()}.`,
+        `Lowest active month: ${lowest.name} at $${Number(lowest.spending || 0).toLocaleString()}.`,
+        `Simple forecast: recent monthly average is about $${Math.round(averageRecent).toLocaleString()} if the current pattern continues.`,
+        `Recommendation: review high-spend months against approved purchase orders and confirm recurring supplier commitments before adding new spend.`
+      ].join("\n"));
     } catch (error) {
       console.error("Insight generation failed:", error);
-      setInsights("AI analysis is temporarily unavailable. The spending data above provides the key metrics for your review.");
+      setInsights("Local analysis could not be generated. The spending chart and summary metrics are still available for review.");
     }
   };
 
@@ -245,12 +241,12 @@ Format the output as a markdown string.`,
               </CardContent>
             </Card>
 
-            {/* AI Insights */}
+            {/* Local Insights */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Lightbulb className="w-5 h-5 text-yellow-500" /> 
-                  AI Insights
+                  Local Insights
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -262,7 +258,7 @@ Format the output as a markdown string.`,
                   <Alert>
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
-                      Click "Analyze Period" to generate AI insights for the selected date range and supplier type.
+                      Click "Analyze Period" to generate local insights for the selected date range and supplier type.
                     </AlertDescription>
                   </Alert>
                 )}

@@ -45,7 +45,6 @@ import { IssuedItem } from "@/api/entities";
 import { Invoice } from "@/api/entities";
 import { Contract } from "@/api/entities";
 import { User } from "@/api/entities";
-import { InvokeLLM } from "@/api/integrations";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LineChart, Line, FunnelChart, Funnel, LabelList, Cell, PieChart, Pie } from 'recharts';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ProcurementAnalysis from "../components/dashboard/ProcurementAnalysis";
@@ -426,99 +425,57 @@ export default function DashboardPage() {
       
       console.log('[Executive Report] Report data prepared:', reportData);
 
-      // Step 2: Generate AI analysis with chart data
-      console.log('[Executive Report] Step 2: Calling LLM for analysis...');
-      const result = await InvokeLLM({
-        prompt: `You are generating a comprehensive Executive Procurement & Inventory Report for management.
-
-PROCUREMENT DATA:
-- Total Spend (Paid Invoices): ${reportData.totalSpendFormatted}
-- Pending Payments (Approved Invoices): ${reportData.pendingPaymentsFormatted}
-- Open Purchase Order Value: ${reportData.openPOValueFormatted}
-- Total Committed Capital: ${reportData.totalCommittedCapitalFormatted}
-- Total Suppliers: ${reportData.totalSuppliers}
-- Active Purchase Orders: ${reportData.activePOs}
-- Active Contracts: ${reportData.activeContracts}
-
-INVENTORY & ASSET DATA:
-- Total Inventory Value: ${reportData.totalInventoryValueFormatted}
-- Low Stock Items (Critical): ${reportData.lowStockItems}
-- Inventory Breakdown: ${JSON.stringify(reportData.inventoryBreakdown)}
-- Equipment Status: ${JSON.stringify(reportData.equipmentStatus)}
-
-INSTRUCTIONS:
-1. Provide a concise executive summary covering BOTH procurement operations AND inventory/asset management
-2. Identify 4-6 key insights that span both procurement efficiency and inventory health
-3. Provide 3-5 actionable recommendations for improving procurement processes AND inventory management
-4. List 3-5 immediate action items for management to address
-5. Highlight any critical risk alerts related to spending, inventory shortages, or asset utilization
-6. Generate chart data for 3-4 key visualizations that would best illustrate the report insights
-
-For charts, use this format:
-- Each data point should have "name" (string) and "value" (number) properties
-- Example: [{"name": "Raw Materials", "value": 362.96}, {"name": "Equipment", "value": 5294.99}]
-
-Focus on:
-- Financial health and capital efficiency
-- Supplier relationship management
-- Inventory adequacy and potential stockouts
-- Asset utilization and equipment status
-- Operational risks and opportunities`,
-        response_json_schema: {
-          type: "object",
-          properties: {
-            executive_summary: { type: "string" },
-            key_insights: { 
-              type: "array", 
-              items: { type: "string" },
-              description: "4-6 key insights covering procurement and inventory"
-            },
-            recommendations: { 
-              type: "array", 
-              items: { type: "string" },
-              description: "3-5 strategic recommendations"
-            },
-            action_items: { 
-              type: "array", 
-              items: { type: "string" },
-              description: "3-5 immediate action items"
-            },
-            risk_alerts: { 
-              type: "array", 
-              items: { type: "string" },
-              description: "Critical risks requiring attention"
-            },
-            charts: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  title: { type: "string" },
-                  type: { type: "string", enum: ["bar", "pie", "line"] },
-                  data: { 
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        name: { type: "string" },
-                        value: { type: "number" }
-                      },
-                      required: ["name", "value"]
-                    }
-                  },
-                  description: { type: "string" }
-                },
-                required: ["title", "type", "data", "description"]
-              },
-              description: "Chart data for visualizations"
-            }
+      const result = {
+        executive_summary: `Total committed capital is ${reportData.totalCommittedCapitalFormatted}, including ${reportData.totalSpendFormatted} in paid invoices, ${reportData.pendingPaymentsFormatted} pending payment, and ${reportData.openPOValueFormatted} in open purchase orders. Inventory value is ${reportData.totalInventoryValueFormatted}, with ${reportData.lowStockItems} low-stock item(s) requiring attention.`,
+        key_insights: [
+          `Paid invoice spend is ${reportData.totalSpendFormatted}.`,
+          `Pending approved payments total ${reportData.pendingPaymentsFormatted}.`,
+          `Open purchase order value is ${reportData.openPOValueFormatted}.`,
+          `${reportData.totalSuppliers} supplier(s), ${reportData.activePOs} active purchase order(s), and ${reportData.activeContracts} active contract(s) are currently tracked.`,
+          `${reportData.lowStockItems} inventory item(s) are below stock thresholds.`
+        ],
+        recommendations: [
+          "Review pending approved invoices before the next payment cycle.",
+          "Prioritize low-stock raw materials and finished goods for replenishment.",
+          "Review open purchase orders against department needs before issuing new RFQs.",
+          "Keep supplier records and validation notes current before approving large purchases."
+        ],
+        action_items: [
+          "Verify all pending payments have matching received goods or approved services.",
+          "Check low-stock inventory items and create requisitions where needed.",
+          "Review high-value open purchase orders for delivery status.",
+          "Confirm active contracts still match current supplier terms."
+        ],
+        risk_alerts: [
+          ...(reportData.lowStockItems > 0 ? [`${reportData.lowStockItems} low-stock item(s) may interrupt operations if not replenished.`] : []),
+          ...(reportData.pendingPayments > 0 ? [`${reportData.pendingPaymentsFormatted} in approved invoices is awaiting payment.`] : []),
+          ...(reportData.openPOValue > 0 ? [`${reportData.openPOValueFormatted} remains committed in open purchase orders.`] : [])
+        ],
+        charts: [
+          {
+            title: "Committed Capital",
+            type: "bar",
+            data: [
+              { name: "Paid", value: reportData.totalSpend },
+              { name: "Pending", value: reportData.pendingPayments },
+              { name: "Open POs", value: reportData.openPOValue }
+            ],
+            description: "Procurement value by current financial status."
           },
-          required: ["executive_summary", "key_insights", "recommendations", "action_items", "risk_alerts", "charts"]
-        }
-      });
-
-      console.log('[Executive Report] Step 3: LLM analysis complete');
-
+          {
+            title: "Inventory Breakdown",
+            type: "pie",
+            data: reportData.inventoryBreakdown || [],
+            description: "Current value split across tracked inventory categories."
+          },
+          {
+            title: "Equipment Status",
+            type: "pie",
+            data: reportData.equipmentStatus || [],
+            description: "Equipment count by operating status."
+          }
+        ]
+      };
       // Step 3: Store report data and navigate to visual report page
       console.log('[Executive Report] Step 4: Preparing visual report...');
       
@@ -544,7 +501,7 @@ Focus on:
       if (error.message && error.message.includes('network')) {
         errorMessage += 'Network error - please check your connection and try again.';
       } else if (error.message && error.message.includes('timeout')) {
-        errorMessage += 'Request timed out - the AI service may be busy. Please try again.';
+        errorMessage += 'Request timed out - the local report generator may be busy. Please try again.';
       } else if (error.response) {
         errorMessage += `Server error: ${error.response.status}. Please try again later.`;
       } else {

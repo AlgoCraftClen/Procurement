@@ -41,41 +41,8 @@ export async function CreateFileSignedUrl({ path, expiresIn = 3600 } = {}) {
 export const UploadPrivateFile = UploadFile;
 
 export async function InvokeLLM(payload = {}) {
-  if (!isSupabaseConfigured) {
-    throw new Error("AI extraction requires Supabase to be configured.");
-  }
-
-  const { data, error } = await supabase.functions.invoke("procurement-ai", {
-    body: payload
-  });
-
-  if (error) {
-    let functionPayload = null;
-    if (error.context) {
-      try {
-        functionPayload = await error.context.json();
-      } catch {
-        functionPayload = null;
-      }
-    }
-
-    const message =
-      functionPayload?.error ||
-      functionPayload?.message ||
-      error.message ||
-      "AI extraction request failed.";
-    const enhancedError = new Error(message);
-    enhancedError.status = error.context?.status || error.status || null;
-    enhancedError.code = functionPayload?.details?.code || functionPayload?.code || null;
-    enhancedError.details = functionPayload?.details || functionPayload || null;
-    throw enhancedError;
-  }
-
-  if (data?.error) {
-    throw new Error(data.error);
-  }
-
-  return data?.result ?? data;
+  void payload;
+  throw new Error("Paid AI API calls are disabled. Use local extraction and manual verification instead.");
 }
 
 export async function SendEmail() {

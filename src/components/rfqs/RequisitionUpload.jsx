@@ -3,9 +3,10 @@ import React, { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { UploadFile, InvokeLLM } from "@/api/integrations";
+import { UploadFile } from "@/api/integrations";
 import { Upload, FileText, AlertCircle, Check, Loader2, Wand2, FileImage, Users } from "lucide-react";
 import RequisitionReviewForm from "./RequisitionReviewForm";
+import { extractProcurementDocumentLocally } from "@/lib/localDocumentExtraction";
 
 export default function RequisitionUpload({ suppliers, onRFQCreated, onCancel }) {
   const [file, setFile] = useState(null);
@@ -31,6 +32,34 @@ export default function RequisitionUpload({ suppliers, onRFQCreated, onCancel })
     resetState();
     if(onCancel) onCancel();
   }
+
+  const parseLocalRequisitionItems = (rawText) => {
+    const lines = String(rawText || "").split(/\n+/).map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean);
+    const items = [];
+
+    for (const line of lines) {
+      if (/^(requester|department|date|priority|requisition|total|signature)\b/i.test(line)) continue;
+      const quantityMatch = line.match(/\b(\d+(?:\.\d+)?)\s*(ea|each|box|case|set|pcs?|units?|bags?|rolls?)?\b/i);
+      if (!quantityMatch || line.length < 5) continue;
+
+      const quantity = Number(quantityMatch[1]) || 1;
+      const unit = quantityMatch[2] || "units";
+      const description = line.replace(quantityMatch[0], "").replace(/^[-*:.\s]+/, "").trim() || line;
+      if (description.length < 3) continue;
+
+      items.push({
+        material_name: description.slice(0, 120),
+        description,
+        quantity,
+        unit,
+        specifications: "",
+        estimated_cost: 0,
+        category: "supplies"
+      });
+    }
+
+    return items.slice(0, 30);
+  };
 
   const handleFileSelect = (e) => {
     const selectedFile = e.target.files[0];
@@ -63,62 +92,44 @@ export default function RequisitionUpload({ suppliers, onRFQCreated, onCancel })
       return;
     }
 
-    // 2. Process Requisition with Advanced OCR and Parsing
+    // 2. Process Requisition locally without a paid API call
     setStep('processing');
     try {
-      const processingResult = await InvokeLLM({
-        prompt: `Analyze this requisition form document (which may contain handwritten text) and extract all relevant procurement information. 
-        
-        Please identify and extract:
-        1. Requester information (name, department, date)
-        2. All requested materials/items with their specifications
-        3. Quantities needed for each item
-        4. Any priority levels or urgency indicators
-        5. Requested delivery dates or timeframes
-        6. Any special instructions or notes
-        7. Budget codes or cost centers if mentioned
-        
-        Parse handwritten text carefully and make reasonable interpretations where text is unclear. 
-        For materials, try to standardize names (e.g. "steel bars" vs "steel rods" should be consistent).
-        Convert any measurements to standard units where possible.
-        
-        Structure the output as a procurement requisition with clear line items.`,
-        file_urls: [uploadedFileUrl],
-        response_json_schema: {
-          type: "object",
-          properties: {
-            requester_info: {
-              type: "object", 
-              properties: {
-                name: { type: "string" },
-                department: { type: "string" },
-                email: { type: "string" },
-                request_date: { type: "string", format: "date" },
-                priority: { type: "string", enum: ["low", "medium", "high", "urgent"] }
-              }
-            },
-            requested_delivery: { type: "string", format: "date" },
-            line_items: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  material_name: { type: "string" },
-                  description: { type: "string" },
-                  quantity: { type: "number" },
-                  unit: { type: "string" },
-                  specifications: { type: "string" },
-                  estimated_cost: { type: "number" },
-                  category: { type: "string", enum: ["raw_material", "equipment", "supplies", "services", "other"] }
-                }
-              }
-            },
-            special_instructions: { type: "string" },
-            budget_code: { type: "string" },
-            total_estimated_value: { type: "number" }
-          }
-        }
-      });
+      const localResult = await extractProcurementDocumentLocally(file, { suppliers });
+      const rawText = localResult.raw_text || "";
+      const lineItems = parseLocalRequisitionItems(rawText);
+      const processingResult = {
+        requester_info: {
+          name: "",
+          department: "",
+          email: "",
+          request_date: new Date().toISOString().split("T")[0],
+          priority: /urgent|asap|immediate/i.test(rawText) ? "urgent" : "medium"
+        },
+        requested_delivery: "",
+        line_items: lineItems,
+        special_instructions: "Extracted locally without a paid API. Please verify line items before creating the RFQ.",
+        budget_code: "",
+        total_estimated_value: 0
+      };
+
+      if (!rawText) {
+        setError("Local extraction could not read this requisition. Please use a clearer scan or create the RFQ manually.");
+        setStep('initial');
+        return;
+      }
+
+      if (!lineItems.length) {
+        processingResult.line_items = [{
+          material_name: "Review uploaded requisition",
+          description: rawText.slice(0, 300),
+          quantity: 1,
+          unit: "units",
+          specifications: "Local extraction found text but could not split line items automatically.",
+          estimated_cost: 0,
+          category: "other"
+        }];
+      }
 
       if (processingResult && processingResult.line_items && processingResult.line_items.length > 0) {
         // Transform the extracted data into RFQ format
@@ -148,7 +159,7 @@ export default function RequisitionUpload({ suppliers, onRFQCreated, onCancel })
 
     } catch (e) {
       console.error("Processing error:", e);
-      setError("An error occurred while processing the requisition. Please check the document quality and try again.");
+        setError("An error occurred while processing the requisition locally. Please check the document quality and try again.");
       setStep('initial');
     }
   };
@@ -198,11 +209,10 @@ export default function RequisitionUpload({ suppliers, onRFQCreated, onCancel })
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Wand2 className="w-5 h-5 text-purple-500" />
-          Smart Requisition Processing
+          Local Requisition Processing
         </CardTitle>
         <CardDescription>
-          Upload a requisition form (handwritten or printed) and we'll automatically extract the materials 
-          and create an RFQ for you. Supports PDF, JPG, PNG formats.
+          Upload a requisition form and the app will read it locally, extract likely materials, and prepare an RFQ for review. Supports PDF, JPG, PNG formats.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -253,7 +263,7 @@ export default function RequisitionUpload({ suppliers, onRFQCreated, onCancel })
   const ProcessingIndicator = ({ step }) => {
     const messages = {
       uploading: "Uploading requisition form...",
-      processing: "Reading handwriting and extracting materials (this may take a moment)...",
+      processing: "Reading the requisition locally and extracting materials...",
       creating: "Creating RFQ from requisition data..."
     };
     
@@ -261,7 +271,7 @@ export default function RequisitionUpload({ suppliers, onRFQCreated, onCancel })
       <div className="text-center p-16 border-2 border-dashed rounded-lg border-purple-300">
         <Loader2 className="w-12 h-12 text-purple-500 mx-auto animate-spin mb-4"/>
         <p className="text-lg font-medium text-slate-900">{messages[step]}</p>
-        <p className="text-sm text-slate-500">AI is processing your document. Please wait...</p>
+        <p className="text-sm text-slate-500">No paid AI API is used. Please wait...</p>
       </div>
     );
   };

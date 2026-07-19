@@ -1,67 +1,59 @@
 # Tobolar Procurement Handoff
 
-Last updated: 2026-07-17
+Last updated: 2026-07-20
 
 ## Current State
 
 - Repository: `AlgoCraftClen/Procurement`
 - Branch: `main`
-- Latest implementation commit before this handoff: `2bff98f Add next session handoff`
 - Local app URL used for validation: `http://127.0.0.1:5173`
 - Production domain: `tobolarprocurement.com`
+- Backend/storage: Supabase
+- Document extraction: local/browser OCR and parsing, no paid AI API
 
 ## Completed In The Latest Pass
 
-- Fixed modal close button spacing so the close control no longer crowds Edit/Delete actions.
-- Separated destructive actions from normal row/form actions in invoices, purchase orders, goods receipts, contracts, and issued inventory.
-- Added sticky Save/Cancel footers to long forms and bottom padding so fields are not hidden.
-- Fixed the purchase order modal loading title so it no longer shows `undefined`.
-- Moved Lijakwe to the bottom-right, made it responsive, and hid the floating widget on the full chat page.
-- Fixed Lijakwe full-page chat so the welcome message remains visible instead of opening blank.
-- Turned the top search into a working page finder.
-- Improved inventory tab hit areas and active states.
-- Updated Upload Documents to save the source file first and fall back to manual record creation when automatic extraction is unavailable.
-- Tested the upload fallback with a temporary PDF, then removed the test file from Supabase Storage.
-- Added the `procurement-ai` Supabase Edge Function for smart document extraction through OpenAI.
-- Reconnected the frontend AI integration to `supabase.functions.invoke("procurement-ai")`.
-- Deployed the `procurement-ai` Edge Function to Supabase project `uvhmgijhgqmjgavhdqdk`; version 1 is active with JWT verification enabled.
-- Set Supabase Edge Function secrets `OPENAI_API_KEY` and `OPENAI_MODEL`.
-- Live-tested the deployed function. It reaches OpenAI, but OpenAI returns `insufficient_quota`.
-- Added route-level lazy loading and Vite vendor chunk splitting to remove the large bundle warning.
-- Updated browser baseline metadata packages to remove stale browser data warnings.
-- Cleaned Fast Refresh lint warnings by moving reusable UI variant helpers into separate modules and removing unused helper exports.
+- Removed the active paid OpenAI/Supabase Edge Function extraction path from Upload Documents.
+- Added free local extraction with:
+  - Tesseract.js for image OCR.
+  - PDF.js for text-native PDFs and scanned PDF page OCR fallback.
+  - Mammoth for `.docx` raw text.
+  - SheetJS for Excel/CSV text extraction.
+- Updated Upload Documents to save the file, run local extraction, prefill data, and send the user to verification before saving.
+- Kept manual verification and distribution available when local extraction is uncertain.
+- Disabled remaining paid `InvokeLLM` paths:
+  - Supplier validation now marks records for manual validation.
+  - Procurement Analysis now generates local deterministic insights.
+  - Executive Report now generates a local deterministic report.
+  - RFQ requisition upload now uses local extraction and line-item parsing.
+- Changed the `InvokeLLM` wrapper to fail closed before any network call.
+- Removed the OpenAI Edge Function source from the repo.
+- Removed OpenAI env vars from `.env.example`.
 
 ## Verification Already Run
 
+- `npm.cmd run lint` passed.
 - `npm.cmd run build` passed.
-- `npm.cmd run lint` passed with no warnings.
-- `npm.cmd run build` passed with no bundle-size or stale-browser-data warnings.
-- Visual audit covered:
-  - Invoice detail and edit modal spacing
-  - Purchase order create form
-  - Lijakwe floating and full chat page
-  - Upload Documents fallback
-  - Inventory tabs and issued-item actions
-  - Header page finder
+- Build still warns about large chunks:
+  - Main app chunk remains large.
+  - `localDocumentExtraction` is large because OCR/PDF/Office parsers are shipped client-side to avoid paid APIs.
+- npm install reported dependency vulnerabilities. They were not auto-fixed because `npm audit fix --force` can introduce breaking changes.
 
 ## Remaining Work
 
-1. Resolve OpenAI API quota/billing for project `proj_QOY56oPqYVCt7ybPWXBVQ1jb`.
-   - The deployed function now has the required Supabase secrets.
-   - Live test response: OpenAI returned `insufficient_quota`.
-   - After credits/billing are available, rerun a live extraction test.
-
-2. Verify smart extraction end-to-end after OpenAI quota is resolved.
-   - Upload a sample invoice or purchase order.
-   - Confirm the function returns structured data instead of the quota error or manual fallback message.
-
-3. Review dependency vulnerabilities reported by npm.
-   - `npm update` reported 17 vulnerabilities after refreshing browser metadata.
-   - Avoid `npm audit fix --force` until there is time to regression-test dependency changes.
+1. Test Upload Documents in the browser with real sample files:
+   - JPG/PNG invoice or purchase order.
+   - Text-native PDF.
+   - Scanned PDF.
+   - DOCX and XLSX.
+2. Tune local extraction rules for Tobolar's real document layouts.
+3. Consider moving OCR/parsing into a Web Worker if browser responsiveness is poor on large files.
+4. Review dependency vulnerabilities separately with regression testing.
+5. If the deployed Supabase project still has the old `procurement-ai` Edge Function, it is not called by the app anymore. Delete it from Supabase later if you want the dashboard cleaned up.
 
 ## Suggested Next Session Order
 
-1. Fix OpenAI project quota/billing.
-2. Test Upload Documents with a real sample file.
-3. If extraction quality is weak, tune `supabase/functions/procurement-ai/index.ts` prompts and schemas.
-4. Review npm vulnerabilities separately from the extraction work.
+1. Open the deployed app and upload a real JPG invoice.
+2. Verify extracted fields, line items, supplier matching, and inventory distribution.
+3. Patch extraction rules based on the first real misses.
+4. Repeat with one PDF and one Excel/Word document.

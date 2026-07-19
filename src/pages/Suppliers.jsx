@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Supplier } from "@/api/entities";
-import { InvokeLLM } from "@/api/integrations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -129,31 +128,12 @@ export default function SuppliersPage() {
   const handleValidate = async (supplier) => {
     setValidatingId(supplier.id);
     try {
-      const result = await InvokeLLM({
-        prompt: `Based on public data from business registries, news articles, and web search results, please assess the legitimacy of the following company: ${supplier.company_name}. Provide a validation status (verified, uncertain, potential_risk), a confidence score (0-100), and a brief summary of your findings.`,
-        add_context_from_internet: true,
-        response_json_schema: {
-          type: "object",
-          properties: {
-            validation_status: {
-              type: "string",
-              enum: ["verified", "uncertain", "potential_risk"]
-            },
-            confidence_score: { type: "number" },
-            validation_details: { type: "string" }
-          },
-          required: ["validation_status", "confidence_score", "validation_details"]
-        }
+      await Supplier.update(supplier.id, {
+        validation_status: "uncertain",
+        confidence_score: 0,
+        validation_details: "Manual supplier validation required. Paid API validation is disabled."
       });
-
-      if (result) {
-        await Supplier.update(supplier.id, {
-          validation_status: result.validation_status,
-          confidence_score: result.confidence_score,
-          validation_details: result.validation_details
-        });
-        await loadSuppliers();
-      }
+      await loadSuppliers();
     } catch (error) {
       console.error("Validation failed:", error);
     } finally {
